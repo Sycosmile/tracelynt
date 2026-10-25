@@ -53,12 +53,8 @@ test('server sessions reject expired, revoked, and suspended-account sessions', 
       [activeUser, suspendedUser, issuer, activeSubject, suspendedSubject]
     );
     await pool.query(
-      "INSERT INTO sessions (token_hash, user_id, expires_at) VALUES ($1, $2, now() + interval '1 hour'), ($3, $2, now() - interval '1 hour')",
+      "INSERT INTO sessions (token_hash, user_id, created_at, expires_at) VALUES ($1, $2, now(), now() + interval '1 hour'), ($3, $2, now() - interval '2 hours', now() - interval '1 hour')",
       [tokenHash(validToken), activeUser, tokenHash(expiredToken)]
-    );
-    await pool.query(
-      "UPDATE sessions SET created_at = now() - interval '2 hours' WHERE token_hash = $1",
-      [tokenHash(expiredToken)]
     );
     await pool.query(
       "INSERT INTO sessions (token_hash, user_id, expires_at, revoked_at) VALUES ($1, $2, now() + interval '1 hour', now())",
