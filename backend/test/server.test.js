@@ -53,3 +53,47 @@ test('returns safe errors for unsupported routes and invalid domain input', asyn
   const body = await invalid.json();
   assert.equal(body.error, 'DOMAIN_CHECK_FAILED');
 });
+
+
+test('builds evidence reports from supplied claims without claiming independent verification', async () => {
+  const response = await fetch(baseUrl() + '/api/report', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      subject: { type: 'business', name: 'Example Trading Ltd' },
+      findings: [{
+        claim: 'The business website publishes a contact page.',
+        category: 'direct_observation',
+        verificationState: 'unreviewed',
+        sourceName: 'Business website',
+        sourceUrl: 'https://example.com/contact'
+      }]
+    })
+  });
+  assert.equal(response.status, 200);
+  const report = await response.json();
+  assert.equal(report.subject.name, 'Example Trading Ltd');
+  assert.equal(report.findings.length, 1);
+  assert.equal(report.findings[0].source.url, 'https://example.com/contact');
+  assert.match(report.interpretation.statement, /not independently verified/);
+  assert.ok(report.generatedAt);
+});
+
+test('rejects unsafe source URLs in evidence reports', async () => {
+  const response = await fetch(baseUrl() + '/api/report', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      subject: { type: 'domain', name: 'example.com' },
+      findings: [{
+        claim: 'Test claim',
+        category: 'analyst_assessment',
+        verificationState: 'unreviewed',
+        sourceName: 'Local service',
+        sourceUrl: 'https://127.0.0.1/private'
+      }]
+    })
+  });
+  assert.equal(response.status, 400);
+  assert.equal((await response.json()).error, 'INVALID_REPORT');
+});
