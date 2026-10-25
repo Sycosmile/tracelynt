@@ -46,6 +46,85 @@
       </section>
       <p class="report-footnote">Technical observations only · No identity attribution · Results may change over time</p>
     </section>
+    <section id="evidence-report" class="report-builder" aria-labelledby="report-title">
+      <p class="eyebrow">EVIDENCE WORKSPACE / 02</p>
+      <h2 id="report-title">Build an evidence report.</h2>
+      <p class="report-intro">Organize business or domain findings with the source that supports each claim. Tracelynt does not independently verify manually supplied claims or fetch these links.</p>
+      <form id="finding-form" class="finding-form">
+        <div class="form-grid">
+          <div class="field">
+            <label for="subject-type">Subject type</label>
+            <select id="subject-type" required>
+              <option value="business">Business</option>
+              <option value="domain">Domain</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="subject-name">Business or domain name</label>
+            <input id="subject-name" maxlength="160" required placeholder="Registered name or example.com">
+          </div>
+        </div>
+        <div class="field">
+          <label for="finding-claim">Finding / claim</label>
+          <textarea id="finding-claim" maxlength="1000" required rows="3" placeholder="State exactly what the source appears to show."></textarea>
+        </div>
+        <div class="form-grid">
+          <div class="field">
+            <label for="source-name">Source name</label>
+            <input id="source-name" maxlength="160" required placeholder="e.g. Corporate Affairs Commission">
+          </div>
+          <div class="field">
+            <label for="source-url">Source URL (HTTPS)</label>
+            <input id="source-url" type="url" maxlength="2048" required placeholder="https://example.gov.ng/record">
+          </div>
+        </div>
+        <div class="form-grid">
+          <div class="field">
+            <label for="finding-category">Evidence category</label>
+            <select id="finding-category" required>
+              <option value="public_record">Public record</option>
+              <option value="direct_observation">Direct observation</option>
+              <option value="provider_data">Provider data</option>
+              <option value="user_report">User report</option>
+              <option value="analyst_assessment">Analyst assessment</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="verification-state">Review state</label>
+            <select id="verification-state" required>
+              <option value="unreviewed">Unreviewed</option>
+              <option value="corroborated">Corroborated</option>
+              <option value="disputed">Disputed</option>
+              <option value="unavailable">Unavailable</option>
+              <option value="retracted">Retracted</option>
+            </select>
+          </div>
+        </div>
+        <div class="field">
+          <label for="finding-notes">Analyst notes (optional)</label>
+          <textarea id="finding-notes" maxlength="1000" rows="2" placeholder="Caveats, conflicting records, or what still needs checking."></textarea>
+        </div>
+        <div class="report-actions">
+          <button id="add-finding" type="button" class="secondary-button">Add finding</button>
+          <button id="generate-report" type="submit">Generate report</button>
+        </div>
+        <p class="hint">Add 1–20 findings. Use original sources where possible. Never treat a user allegation as an established fact.</p>
+      </form>
+      <section class="draft-panel" aria-labelledby="draft-title">
+        <div class="draft-heading"><h3 id="draft-title">Draft findings</h3><span id="draft-count">0 / 20</span></div>
+        <ul id="draft-findings" class="draft-list"><li class="empty-record">No findings added yet.</li></ul>
+      </section>
+      <section id="report-output" class="report-output" aria-live="polite" hidden>
+        <div class="report-output-heading"><h3>Generated report</h3><span id="report-generated-at" class="timestamp"></span></div>
+        <p id="report-disclaimer" class="report-disclaimer"></p>
+        <div id="report-findings" class="report-findings"></div>
+        <div class="report-actions">
+          <button id="download-report" type="button" class="secondary-button">Export JSON</button>
+          <button id="print-report" type="button" class="secondary-button">Print / Save PDF</button>
+        </div>
+      </section>
+      <p id="report-feedback" class="feedback" role="status" aria-live="polite" hidden></p>
+    </section>
     <section class="principles">
       <div><span class="principle-index">A</span><h3>Evidence first</h3><p>Results show technical observations, not verdicts about legitimacy.</p></div>
       <div><span class="principle-index">B</span><h3>Visible limits</h3><p>Missing data and incomplete checks are reported rather than guessed.</p></div>
