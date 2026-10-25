@@ -61,6 +61,7 @@ Authentication:
 - GET /auth/callback — handle the configured OIDC callback.
 - GET /api/session — return authentication state and a CSRF token for an active session.
 - POST /auth/logout — revoke the current session and clear auth cookies; send JSON content type, same-origin Origin header, and CSRF token.
+- DELETE /api/account — requires JSON {"confirm":true}; revokes sessions and marks the account and its cases deletion_pending.
 
 Private workspace (requires a valid session):
 - GET /api/cases — list the authenticated user's cases.
@@ -71,8 +72,10 @@ Private workspace (requires a valid session):
 - GET /api/cases/:id/evidence — list evidence for an owned case.
 - POST /api/cases/:id/evidence — add a finding with claim, category, source name, optional HTTPS source URL, limitations, and optional observation time.
 - PATCH /api/cases/:id/evidence/:evidenceId — update review state, correction note, or limitations.
-- GET /api/cases/:id/reports — list stored report versions.
+- GET /api/cases/:id/reports — list report version metadata.
+- GET /api/cases/:id/reports/:reportId — read an owned report version.
 - POST /api/cases/:id/reports — generate and store a versioned summary from the case's evidence. The report explicitly says that claims are not independently verified.
+- POST /api/cases/:id/reports/:reportId/export — authorize and audit a report export before returning the snapshot.
 
 Every case, evidence, and report query is scoped to the authenticated owner. Unknown and non-owned IDs return the same not-found response. Mutations and sensitive reads write minimized audit events in the same transaction. Sharing and public case links are not supported.
 
@@ -82,7 +85,7 @@ Every case, evidence, and report query is scoped to the authenticated owner. Unk
 - External evidence URLs are stored as references and never fetched by the case API.
 - Report versions are immutable snapshots; later evidence corrections do not silently rewrite previous reports.
 - The rate limiter is process-local and not sufficient for production abuse control.
-- Deletion currently marks a case pending and blocks normal access. A purge worker, account deletion, retention deadlines enforcement, backup expiry, and restoration drills remain unimplemented.
+- Case and account deletion requests mark records deletion_pending, block normal case access, and revoke account sessions. The explicit operator command npm run purge:pending physically deletes pending cases and accounts and removes expired sessions/login transactions. Before running it, review the retention policy and set CONFIRM_PURGE_PENDING_CASES=YES. An optional PURGE_OWNER_IDS comma-separated UUID list limits a run to selected owners. No scheduled purge, approved retention period, backup expiry, or restoration drill is configured; deleting primary database rows does not remove backup copies.
 - The frontend has not yet been wired to the private case APIs.
 - Use a least-privilege database role in any non-disposable environment; keep migration credentials separate from runtime credentials.
 - Never commit real provider credentials or investigation records. Do not store sensitive production records until access-control, retention, deletion, monitoring, backup, provider, and hosting reviews are complete.
