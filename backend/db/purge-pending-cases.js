@@ -34,8 +34,15 @@ async function main() {
         [randomUUID(), row.id]
       );
     }
-    await client.query('DELETE FROM sessions WHERE expires_at <= now() OR revoked_at IS NOT NULL');
-    await client.query('DELETE FROM oidc_login_transactions WHERE expires_at <= now()');
+    if (ownerIds) {
+      await client.query(
+        'DELETE FROM sessions WHERE user_id = ANY($1::uuid[]) AND (expires_at <= now() OR revoked_at IS NOT NULL)',
+        [ownerIds]
+      );
+    } else {
+      await client.query('DELETE FROM sessions WHERE expires_at <= now() OR revoked_at IS NOT NULL');
+      await client.query('DELETE FROM oidc_login_transactions WHERE expires_at <= now()');
+    }
     await client.query('COMMIT');
     process.stdout.write('Purged pending cases: ' + pending.rowCount + '; pending accounts: ' + accounts.rowCount + '; expired sessions/login transactions removed.\n');
   } catch (error) {
