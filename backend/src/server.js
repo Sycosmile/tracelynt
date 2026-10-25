@@ -122,8 +122,8 @@ export const server = http.createServer(async (request, response) => {
     try {
       const user = await currentUser(request);
       if (!user) return send(response, 401, { error: 'UNAUTHENTICATED' });
-      if (!['GET', 'POST', 'PATCH'].includes(request.method || '')) return send(response, 405, { error: 'METHOD_NOT_ALLOWED' });
-      const isMutation = request.method === 'POST' || request.method === 'PATCH';
+      if (!['GET', 'POST', 'PATCH', 'DELETE'].includes(request.method || '')) return send(response, 405, { error: 'METHOD_NOT_ALLOWED' });
+      const isMutation = request.method === 'POST' || request.method === 'PATCH' || request.method === 'DELETE';
       if (isMutation) assertCsrf(request);
       let body;
       if (isMutation) {
