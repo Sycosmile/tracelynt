@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { getPool } from './db.js';
+import net from 'node:net';
+import { isPublicIp } from './domain-check.js';
 
 const SUBJECT_TYPES = new Set(['business', 'domain', 'phone_number', 'other']);
 const REVIEW_STATES = new Set(['unreviewed', 'corroborated', 'disputed', 'unavailable', 'retracted']);
@@ -53,7 +55,7 @@ function validateEvidence(body) {
     let parsed;
     try { parsed = new URL(sourceUrl); } catch { throw new TypeError('Source URL must be a valid HTTPS URL.'); }
     if (parsed.protocol !== 'https:' || parsed.username || parsed.password) throw new TypeError('Source URL must be HTTPS and cannot include credentials.');
-    if (['localhost'].includes(parsed.hostname) || parsed.hostname.endsWith('.localhost') || parsed.hostname.endsWith('.local') || parsed.hostname.endsWith('.internal')) {
+    if ((net.isIP(parsed.hostname) && !isPublicIp(parsed.hostname)) || parsed.hostname === 'localhost' || parsed.hostname.endsWith('.localhost') || parsed.hostname.endsWith('.local') || parsed.hostname.endsWith('.internal')) {
       throw new TypeError('Local and internal source URLs are not allowed.');
     }
   }
@@ -280,18 +282,51 @@ export async function routeCaseRequest({ method, pathname, body, userId }) {
     }
 
     if (reportList && method === 'POST') {
-      if (!body || typeof body !== 'object' || Array.isArray(body)) return invalid('Report body must be an object.');
-      const reportData = JSON.stringify(body);
-      if (reportData.length > 80_000) return invalid('Report snapshot is too large.');
       return await transact(async (client) => {
         const owned = await client.query(
-          "SELECT id FROM cases WHERE id = $1 AND owner_user_id = $2 AND status = 'open' FOR UPDATE",
+          "SELECT id, title, purpose, subject_type, subject_label FROM cases WHERE id = $1 AND owner_user_id = $2 AND status = 'open' FOR UPDATE",
           [caseId, userId]
         );
         if (owned.rowCount !== 1) {
           await audit(client, userId, 'create', 'report', caseId, 'denied');
           return notFound();
         }
+        const evidence = await client.query(
+          'SELECT id, claim, category, review_state, source_name, source_url, observed_at, created_at, limitations, correction_note, retracted_at FROM evidence_items WHERE case_id = $1 ORDER BY created_at ASC LIMIT 200',
+          [caseId]
+        );
+        if (evidence.rowCount < 1) return invalid('Add at least one evidence item before generating a report.');
+        const subject = owned.rows[0];
+        const reportData = {
+          schemaVersion: '1.0',
+          reportType: 'case-evidence-summary',
+          case: { id: caseId, title: subject.title, purpose: subject.purpose },
+          subject: { type: subject.subject_type, name: subject.subject_label },
+          generatedAt: new Date().toISOString(),
+          findings: evidence.rows.map((item, index) => ({
+            id: item.id,
+            order: index + 1,
+            claim: item.claim,
+            category: item.category,
+            verificationState: item.review_state,
+            source: { name: item.source_name, url: item.source_url },
+            observedAt: item.observed_at,
+            recordedAt: item.created_at,
+            limitations: item.limitations,
+            correctionNote: item.correction_note,
+            retractedAt: item.retracted_at
+          })),
+          interpretation: {
+            status: 'analyst_supplied',
+            statement: 'This report summarizes evidence entered into the case. Tracelynt has not independently verified external claims or source content.',
+            guidance: 'Review original sources, note conflicting evidence, and do not treat correlation, a single source, or an allegation as proof of identity or wrongdoing.'
+          },
+          limitations: [
+            'Evidence items are user-entered records and are not independently verified by this report generator.',
+            'Source links are recorded but not fetched. A link does not prove a claim is accurate or current.',
+            'Reports reflect evidence recorded at generation time; later corrections or retractions do not rewrite this snapshot.'
+          ]
+        };
         const versionResult = await client.query(
           'SELECT COALESCE(MAX(version_number), 0) + 1 AS version FROM report_versions WHERE case_id = $1',
           [caseId]
@@ -299,7 +334,7 @@ export async function routeCaseRequest({ method, pathname, body, userId }) {
         const id = randomUUID();
         const result = await client.query(
           'INSERT INTO report_versions (id, case_id, creator_user_id, version_number, report_data) VALUES ($1, $2, $3, $4, $5::jsonb) RETURNING id, version_number AS "versionNumber", generated_at AS "generatedAt", report_data AS "reportData"',
-          [id, caseId, userId, versionResult.rows[0].version, reportData]
+          [id, caseId, userId, versionResult.rows[0].version, JSON.stringify(reportData)]
         );
         await audit(client, userId, 'create', 'report', id);
         return { status: 201, body: { report: result.rows[0] } };
