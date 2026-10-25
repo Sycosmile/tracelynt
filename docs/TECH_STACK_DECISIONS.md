@@ -46,7 +46,8 @@ Do not put private investigation records on free/sleeping prototype instances. A
 2. Completed in the backend: configurable OIDC flow, hashed sessions, expiry/revocation, and CSRF checks; provider credentials remain unconfigured.
 3. Implemented: owner-scoped case/evidence APIs, immutable report snapshots, and transactionally recorded audit events.
 4. In progress: run the PostgreSQL integration workflow and resolve any failures.
-5. Next: connect the frontend to sign-in/session/case APIs, then implement physical deletion, retention enforcement, and account deletion.
+5. Completed: connect the frontend to sign-in/session/case APIs, saved report versions, export, and deletion-request controls.
+6. Next: run the newest full CI workflow, then implement scheduled retention enforcement and backup expiry; real provider setup and end-to-end login verification remain blocked on provider selection.
 6. Before production: select and review the identity provider and host, add least-privilege runtime DB roles, backup/restore tests, distributed rate limiting, and operational monitoring.
 
 ## Release blockers
