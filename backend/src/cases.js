@@ -129,11 +129,13 @@ export async function routeCaseRequest({ method, pathname, body, userId }) {
     const reportList = pathname.match(/^\/api\/cases\/([0-9a-f-]+)\/reports$/i);
     const evidenceItem = pathname.match(/^\/api\/cases\/([0-9a-f-]+)\/evidence\/([0-9a-f-]+)$/i);
     const caseItem = pathname.match(/^\/api\/cases\/([0-9a-f-]+)$/i);
-    if (!caseItem && !evidenceList && !reportList && !evidenceItem) return null;
-    const caseId = (caseItem || evidenceList || reportList || evidenceItem)[1];
+    if (!caseItem && !evidenceList && !reportList && !evidenceItem && !reportItem && !reportExport) return null;
+    const caseId = (caseItem || evidenceList || reportList || evidenceItem || reportItem || reportExport)[1];
     if (!UUID.test(caseId)) return notFound();
 
     if (evidenceItem && !UUID.test(evidenceItem[2])) return notFound();
+    if (reportItem && !UUID.test(reportItem[2])) return notFound();
+    if (reportExport && !UUID.test(reportExport[2])) return notFound();
 
     if (method === 'GET' && caseItem) {
       return await transact(async (client) => {
@@ -290,11 +292,57 @@ export async function routeCaseRequest({ method, pathname, body, userId }) {
           return notFound();
         }
         const result = await client.query(
-          'SELECT id, version_number AS "versionNumber", generated_at AS "generatedAt", report_data AS "reportData" FROM report_versions WHERE case_id = $1 AND deleted_at IS NULL ORDER BY version_number DESC LIMIT 100',
+          'SELECT id, version_number AS "versionNumber", generated_at AS "generatedAt" FROM report_versions WHERE case_id = $1 AND deleted_at IS NULL ORDER BY version_number DESC LIMIT 100',
           [caseId]
         );
         await audit(client, userId, 'list', 'report', caseId);
         return { status: 200, body: { reports: result.rows } };
+      });
+    }
+
+    if (reportItem && method === 'GET') {
+      return await transact(async (client) => {
+        const owned = await client.query(
+          "SELECT id FROM cases WHERE id = $1 AND owner_user_id = $2 AND status <> 'deletion_pending'",
+          [caseId, userId]
+        );
+        if (owned.rowCount !== 1) {
+          await audit(client, userId, 'read', 'report', reportItem[2], 'denied');
+          return notFound();
+        }
+        const result = await client.query(
+          'SELECT id, version_number AS "versionNumber", generated_at AS "generatedAt", report_data AS "reportData" FROM report_versions WHERE id = $1 AND case_id = $2 AND deleted_at IS NULL',
+          [reportItem[2], caseId]
+        );
+        if (result.rowCount !== 1) {
+          await audit(client, userId, 'read', 'report', reportItem[2], 'denied');
+          return notFound();
+        }
+        await audit(client, userId, 'read', 'report', reportItem[2]);
+        return { status: 200, body: { report: result.rows[0] } };
+      });
+    }
+
+    if (reportExport && method === 'POST') {
+      return await transact(async (client) => {
+        const owned = await client.query(
+          "SELECT id FROM cases WHERE id = $1 AND owner_user_id = $2 AND status <> 'deletion_pending'",
+          [caseId, userId]
+        );
+        if (owned.rowCount !== 1) {
+          await audit(client, userId, 'export', 'export', reportExport[2], 'denied');
+          return notFound();
+        }
+        const result = await client.query(
+          'SELECT id, version_number AS "versionNumber", generated_at AS "generatedAt", report_data AS "reportData" FROM report_versions WHERE id = $1 AND case_id = $2 AND deleted_at IS NULL',
+          [reportExport[2], caseId]
+        );
+        if (result.rowCount !== 1) {
+          await audit(client, userId, 'export', 'export', reportExport[2], 'denied');
+          return notFound();
+        }
+        await audit(client, userId, 'export', 'export', reportExport[2]);
+        return { status: 200, body: { report: result.rows[0] } };
       });
     }
 
