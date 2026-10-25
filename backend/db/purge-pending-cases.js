@@ -28,6 +28,12 @@ async function main() {
       "DELETE FROM users u WHERE u.status = 'deletion_pending' AND ($1::uuid[] IS NULL OR u.id = ANY($1::uuid[])) AND NOT EXISTS (SELECT 1 FROM cases c WHERE c.owner_user_id = u.id) RETURNING id",
       [ownerIds]
     );
+    for (const row of accounts.rows) {
+      await client.query(
+        "INSERT INTO audit_events (id, actor_user_id, action, resource_type, resource_id, outcome) VALUES ($1, NULL, 'purge', 'account', $2, 'success')",
+        [randomUUID(), row.id]
+      );
+    }
     await client.query('DELETE FROM sessions WHERE expires_at <= now() OR revoked_at IS NOT NULL');
     await client.query('DELETE FROM oidc_login_transactions WHERE expires_at <= now()');
     await client.query('COMMIT');
