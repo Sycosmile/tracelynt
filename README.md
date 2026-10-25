@@ -27,7 +27,7 @@ Tracelynt is an evidence-led intelligence and verification workspace for researc
 - A case deletion request marks the case as `deletion_pending` and hides it from normal access; scheduled physical deletion, backup expiry, and an approved retention policy are not implemented.
 - Automated retention enforcement, distributed rate limiting, backup expiry/restoration, and a scheduled purge remain outstanding. The manual purge command deletes pending records from the primary database only.
 - The existing `/api/report` endpoint creates an in-memory report from analyst-supplied data; case reports are persisted as immutable version snapshots.
-- The latest checked GitHub Actions run passed both backend checks and PostgreSQL integration tests. Local tests that require PostgreSQL still need a reachable database.
+- GitHub Actions is configured to run backend checks and PostgreSQL integration tests. Check the [Actions page](https://github.com/Sycosmile/tracelynt/actions) for the current result. Local tests that require PostgreSQL still need a reachable database.
 
 See [Backend](backend/README.md), [Database setup](backend/db/README.md), [Product requirements](docs/PRODUCT_REQUIREMENTS.md), and [Security design](docs/CASE_WORKSPACE_DESIGN.md).
 
