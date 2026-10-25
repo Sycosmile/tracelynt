@@ -1,0 +1,95 @@
+const CATEGORIES = new Set([
+  'public_record',
+  'direct_observation',
+  'provider_data',
+  'user_report',
+  'analyst_assessment'
+]);
+const STATES = new Set(['unreviewed', 'corroborated', 'disputed', 'unavailable', 'retracted']);
+const MAX_FINDINGS = 20;
+
+function cleanText(value, label, maxLength, required = true) {
+  if (typeof value !== 'string') {
+    if (!required && (value === undefined || value === null)) return '';
+    throw new TypeError(label + ' must be text.');
+  }
+  const result = value.trim();
+  if (required && !result) throw new Error(label + ' is required.');
+  if (result.length > maxLength) throw new Error(label + ' is too long.');
+  return result;
+}
+
+function normalizeSourceUrl(value) {
+  const raw = cleanText(value, 'Source URL', 2048);
+  let url;
+  try {
+    url = new URL(raw);
+  } catch {
+    throw new Error('Source URL must be a valid HTTPS URL.');
+  }
+  if (url.protocol !== 'https:' || url.username || url.password || !url.hostname.includes('.')) {
+    throw new Error('Source URL must be an HTTPS link to a named public source.');
+  }
+  if (url.hostname === 'localhost' || url.hostname.endsWith('.localhost') || url.hostname.endsWith('.local') || url.hostname.endsWith('.internal')) {
+    throw new Error('Local and internal source URLs are not allowed.');
+  }
+  url.hash = '';
+  return url.toString();
+}
+
+export function createEvidenceReport(input, now = () => new Date()) {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) {
+    throw new TypeError('Report body must be a JSON object.');
+  }
+  const subjectInput = input.subject;
+  if (!subjectInput || typeof subjectInput !== 'object' || Array.isArray(subjectInput)) {
+    throw new TypeError('A report subject is required.');
+  }
+  const type = cleanText(subjectInput.type, 'Subject type', 20);
+  if (!['business', 'domain'].includes(type)) throw new Error('Subject type must be business or domain.');
+  const name = cleanText(subjectInput.name, 'Subject name', 160);
+  const findingsInput = input.findings;
+  if (!Array.isArray(findingsInput) || findingsInput.length < 1 || findingsInput.length > MAX_FINDINGS) {
+    throw new Error('A report must contain between 1 and ' + MAX_FINDINGS + ' findings.');
+  }
+
+  const findings = findingsInput.map((item, index) => {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) {
+      throw new TypeError('Finding ' + (index + 1) + ' must be an object.');
+    }
+    const category = cleanText(item.category, 'Finding category', 40);
+    const verificationState = cleanText(item.verificationState, 'Verification state', 40);
+    if (!CATEGORIES.has(category)) throw new Error('Finding category is not supported.');
+    if (!STATES.has(verificationState)) throw new Error('Verification state is not supported.');
+    return {
+      id: index + 1,
+      claim: cleanText(item.claim, 'Finding claim', 1000),
+      category,
+      verificationState,
+      source: {
+        name: cleanText(item.sourceName, 'Source name', 160),
+        url: normalizeSourceUrl(item.sourceUrl)
+      },
+      notes: cleanText(item.notes ?? '', 'Finding notes', 1000, false)
+    };
+  });
+
+  return {
+    schemaVersion: '1.0',
+    reportType: 'evidence-summary',
+    subject: { type, name },
+    generatedAt: now().toISOString(),
+    findings,
+    interpretation: {
+      status: 'analyst_supplied',
+      statement: 'This report organizes analyst-supplied claims and source links. Tracelynt has not independently verified these claims or the source content.',
+      guidance: 'Review each original source, note conflicting evidence, and avoid treating correlation or a single source as proof of identity or wrongdoing.'
+    },
+    limitations: [
+      'Source links and claims were supplied by the report author and were not fetched or independently verified.',
+      'A source link does not prove that a claim is accurate, current, or complete.',
+      'User reports and analyst assessments are not equivalent to official records or independently corroborated facts.',
+      'This prototype does not persist reports; save the exported file securely and apply appropriate retention controls.'
+    ]
+  };
+}
