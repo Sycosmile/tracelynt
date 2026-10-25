@@ -129,6 +129,11 @@ test('private case API enforces owner isolation and versions evidence reports', 
       [caseId]
     );
     assert.equal(retainedAudit.rows[0].count, 1);
+    const retainedAccountAudit = await pool.query(
+      "SELECT count(*)::int AS count FROM audit_events WHERE resource_type = 'account' AND resource_id = $1 AND action = 'purge'",
+      [userB]
+    );
+    assert.equal(retainedAccountAudit.rows[0].count, 1);
   } finally {
     const ids = [userA, userB];
     const resourceIds = caseId ? [caseId, userB] : [userB];
