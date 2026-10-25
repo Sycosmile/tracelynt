@@ -1,0 +1,43 @@
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+secrets/
+credentials/
+
+# Dependencies
+node_modules/
+.pnpm-store/
+.venv/
+venv/
+__pycache__/
+
+# Build and test output
+dist/
+build/
+.next/
+coverage/
+playwright-report/
+test-results/
+*.log
+
+# Local tooling
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Local databases, exports, and investigation data
+*.sqlite
+*.sqlite3
+*.db
+exports/
+reports/
+case-data/
+investigation-data/
