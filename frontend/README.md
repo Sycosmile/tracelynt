@@ -1,28 +1,31 @@
 # Frontend
 
-The frontend has not been implemented yet.
+The first interface is a dependency-free, responsive HTML/CSS/JavaScript prototype served by the backend from the same origin.
 
-## Responsibilities
-- Accept and validate input for usability; backend validation remains authoritative.
-- Display findings with source, retrieval time, verification state, and limitations.
-- Separate provider data, public records, user reports, and analyst assessment.
-- Show case access and sharing state.
-- Provide accessible loading, partial-result, empty, and error states.
-- Offer correction and dispute flows when implemented.
+## Run
+
+Use Node.js 22 or newer. From the repository root:
+
+    cd backend
+    npm start
+
+Open http://127.0.0.1:8000 in a browser. The interface sends domain checks to the local API. The backend serves only an explicit allowlist of frontend assets; do not open index.html directly from the filesystem.
+
+## Current screen
+
+- Domain input and loading/error states.
+- DNS A, AAAA, MX, and TXT observations.
+- TLS certificate metadata.
+- Retrieval timestamp and explicit limitations.
+- Responsive layout and accessible status announcements.
 
 ## Security requirements
-- Never embed provider secrets in client bundles.
-- Do not render source HTML as trusted application markup.
-- Treat external URLs as untrusted and display their destinations clearly.
-- Do not rely on hidden UI controls for authorization.
-- Avoid storing sensitive investigation data in local storage by default.
-- Keep personal data and secrets out of analytics events.
-- Use secure session handling and protect state-changing requests as required by the chosen authentication design.
 
-## Initial screens
-1. Search form for supported query types.
-2. Results view with source attribution and caveats.
-3. Private case workspace in a later phase.
-4. Report preview and controlled export in a later phase.
+- Values from the API are inserted with textContent, not interpreted as HTML.
+- No third-party scripts, analytics, or client-side secrets.
+- The browser does not fetch the submitted domain directly; the backend performs bounded DNS/TLS checks.
+- Static asset routes are explicitly allowlisted.
+- Do not treat the results as proof of legitimacy or operator identity.
+- Authentication, private case workspaces, report export, and production hardening are not implemented yet.
 
-Select the framework and package manager before adding code. Document setup and tests once implementation exists.
+This is a prototype, not a production-ready application.
