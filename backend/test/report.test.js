@@ -54,3 +54,16 @@ test('requires source attribution and bounded text fields', () => {
   assert.throws(() => createEvidenceReport({ ...validInput, findings: [{ ...validInput.findings[0], sourceName: '' }] }), /Source name is required/);
   assert.throws(() => createEvidenceReport({ ...validInput, findings: [{ ...validInput.findings[0], claim: 'x'.repeat(1001) }] }), /Finding claim is too long/);
 });
+
+
+test('accepts the documented maximum of twenty bounded findings', () => {
+  const report = createEvidenceReport({
+    ...validInput,
+    findings: Array.from({ length: 20 }, (_, index) => ({
+      ...validInput.findings[0],
+      claim: 'Finding ' + (index + 1)
+    }))
+  });
+  assert.equal(report.findings.length, 20);
+  assert.equal(report.findings[19].id, 20);
+});
