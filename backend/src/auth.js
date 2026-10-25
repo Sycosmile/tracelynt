@@ -78,8 +78,14 @@ export function clearAuthCookies() {
   ];
 }
 
+function authSecret() {
+  const secret = requiredEnv('AUTH_SECRET');
+  if (Buffer.byteLength(secret) < 32) throw new Error('AUTH_SECRET must be at least 32 bytes.');
+  return secret;
+}
+
 function csrfFor(sessionToken) {
-  return createHmac('sha256', requiredEnv('AUTH_SECRET'))
+  return createHmac('sha256', authSecret())
     .update('tracelynt-csrf:')
     .update(sessionToken)
     .digest('base64url');
@@ -113,6 +119,7 @@ export function assertCsrf(request) {
 }
 
 export async function beginLogin() {
+  authSecret();
   const config = await oidcConfig();
   const origin = baseUrl();
   const state = oidc.randomState();
