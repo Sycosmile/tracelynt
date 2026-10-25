@@ -78,6 +78,8 @@ jobs:
           npm run migrate
           test "$(psql "$DATABASE_URL" --no-psqlrc -Atc "SELECT count(*) FROM schema_migrations WHERE version = '001_initial_schema'")" = "1"
           test "$(psql "$DATABASE_URL" --no-psqlrc -Atc "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('users', 'sessions', 'cases', 'evidence_items', 'report_versions', 'audit_events')")" = "6"
+      - name: Run tests against PostgreSQL
+        run: npm test
       - name: Verify failed migrations roll back
         run: |
           probe="db/migrations/999_ci_rollback_probe.sql"
