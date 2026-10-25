@@ -721,3 +721,98 @@ document.querySelector('#workspace-delete-account').addEventListener('click', as
     setWorkspaceMessage(error.message);
   }
 });
+
+
+// Public phone-format and organization-source helper. No subscriber lookup is performed.
+const publicLookupForm = document.querySelector('#public-lookup-form');
+const publicLookupType = document.querySelector('#public-lookup-type');
+const publicLookupValue = document.querySelector('#public-lookup-value');
+const publicLookupLabel = document.querySelector('#public-lookup-label');
+const publicLookupSubmit = document.querySelector('#public-lookup-submit');
+const publicLookupOutput = document.querySelector('#public-lookup-output');
+const publicLookupOutputTitle = document.querySelector('#public-lookup-output-title');
+const publicLookupTimestamp = document.querySelector('#public-lookup-timestamp');
+const publicLookupDisclaimer = document.querySelector('#public-lookup-disclaimer');
+const publicLookupResults = document.querySelector('#public-lookup-results');
+
+function parsePhoneFormat(raw) {
+  const value = raw.trim();
+  if (!value || !/^[+()0-9. -]+$/.test(value)) {
+    throw new Error('Enter a phone number using digits and common separators.');
+  }
+  let digits = value.replace(/[^0-9]/g, '');
+  if (value.startsWith('+')) {
+    if (digits.length < 8 || digits.length > 15 || digits.startsWith('0')) {
+      throw new Error('Use an international number with 8–15 digits after +.');
+    }
+    return { number: '+' + digits, region: digits.startsWith('234') ? 'Nigeria (+234; inferred)' : 'Calling region not mapped' };
+  }
+  if (digits.length === 11 && digits.startsWith('0')) {
+    digits = '234' + digits.slice(1);
+  } else if (digits.length === 10 && /^[789][01][0-9]{8}$/.test(digits)) {
+    digits = '234' + digits;
+  } else {
+    throw new Error('For Nigerian local numbers, use 11 digits starting with 0, or use international + format.');
+  }
+  return { number: '+' + digits, region: 'Nigeria (+234; inferred)' };
+}
+
+function appendPublicSearchLink(provider, href) {
+  const item = document.createElement('article');
+  item.className = 'report-finding';
+  const link = document.createElement('a');
+  link.href = href;
+  link.target = '_blank';
+  link.rel = 'noopener noreferrer';
+  link.textContent = 'Search with ' + provider + ' ↗';
+  item.append(link);
+  publicLookupResults.append(item);
+}
+
+publicLookupType.addEventListener('change', () => {
+  const isPhone = publicLookupType.value === 'phone';
+  publicLookupLabel.textContent = isPhone ? 'Phone number' : 'Business or organization name';
+  publicLookupValue.placeholder = isPhone ? '+234 801 234 5678' : 'Registered business or organization name';
+  publicLookupSubmit.textContent = isPhone ? 'Check number format' : 'Build public searches';
+  publicLookupOutput.hidden = true;
+});
+
+publicLookupForm.addEventListener('submit', event => {
+  event.preventDefault();
+  const value = publicLookupValue.value.trim();
+  publicLookupResults.replaceChildren();
+  publicLookupOutput.hidden = false;
+  publicLookupTimestamp.textContent = 'Prepared ' + new Date().toLocaleString();
+
+  if (publicLookupType.value === 'phone') {
+    try {
+      const parsed = parsePhoneFormat(value);
+      publicLookupOutputTitle.textContent = 'Phone format result';
+      publicLookupDisclaimer.textContent = 'Format checks do not confirm that a number is assigned, active, controlled by a particular person, or safe. No carrier or subscriber database was queried.';
+      for (const [label, detail] of [
+        ['Normalized number', parsed.number],
+        ['Calling region', parsed.region],
+        ['Check performed', 'Local syntax rules only; no external lookup']
+      ]) {
+        const item = document.createElement('article');
+        item.className = 'report-finding';
+        item.append(textElement('h4', '', label), textElement('p', 'report-note', detail));
+        publicLookupResults.append(item);
+      }
+    } catch (error) {
+      publicLookupOutputTitle.textContent = 'Number format needs attention';
+      publicLookupDisclaimer.textContent = error.message || 'Could not parse this number.';
+    }
+  } else if (value.length < 2) {
+    publicLookupOutputTitle.textContent = 'Enter a more specific query';
+    publicLookupDisclaimer.textContent = 'Enter at least two characters for the organization name.';
+  } else {
+    const query = encodeURIComponent('"' + value + '"');
+    publicLookupOutputTitle.textContent = 'Public organization searches';
+    publicLookupDisclaimer.textContent = 'Choose a search provider to open results. The provider receives the query when clicked. Results may be incomplete or misleading; check original sources and do not treat a name match alone as verification.';
+    appendPublicSearchLink('Google', 'https://www.google.com/search?q=' + query);
+    appendPublicSearchLink('Bing', 'https://www.bing.com/search?q=' + query);
+    appendPublicSearchLink('DuckDuckGo', 'https://duckduckgo.com/?q=' + query);
+  }
+  publicLookupOutput.scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
