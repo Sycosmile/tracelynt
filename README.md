@@ -13,7 +13,9 @@ Tracelynt is an evidence-led intelligence and verification workspace for researc
 - TLS certificate metadata from a validated public IPv4 address.
 - Same-origin browser interface served by the backend.
 - Explicit frontend asset allowlist, request-size limits, no-store responses, and a basic in-memory rate limit.
-- Tests for domain validation, IP-range guards, API responses, and static asset serving.
+- Evidence report builder for business/domain findings with source attribution, review states, timestamps, and explicit limitations.
+- JSON export and browser print-to-PDF workflow for generated reports; reports are not stored server-side.
+- Tests for domain validation, IP-range guards, report validation, API responses, and static asset serving.
 - GitHub Actions workflow for JavaScript syntax checks and automated tests.
 
 See [Backend](backend/README.md) and [Frontend](frontend/README.md) for setup and limitations. Run the test suite with npm from the backend directory.
@@ -23,10 +25,11 @@ See [Backend](backend/README.md) and [Frontend](frontend/README.md) for setup an
 - Phone-number intelligence based on numbering plans and reviewed providers.
 - Public-source research with links to original sources.
 - Business and website checks based on appropriately sourced information.
+- Analyst-authored evidence reports; official registry/provider integrations remain unconfigured.
 - Evidence correlation with timestamps, source attribution, uncertainty, and correction history.
 - Private investigation workspaces and reports with controlled access.
 
-These are product goals, not claims that integrations or data sources already exist.
+The evidence report builder is implemented, but it records author-supplied claims and links only; it does not independently verify source content. Other items remain product goals, not claims that integrations or data sources already exist.
 
 ## Principles
 
@@ -40,8 +43,8 @@ These are product goals, not claims that integrations or data sources already ex
 
 ## Repository layout
 
-- backend/: domain-intelligence API and tests
-- frontend/: responsive domain-inspection interface
+- backend/: domain-intelligence and evidence-report API, with tests
+- frontend/: responsive domain-inspection interface and evidence report builder
 - docs/PRODUCT_REQUIREMENTS.md: scope and acceptance criteria
 - docs/ARCHITECTURE.md: design and network safeguards
 - docs/SECURITY.md: threat model and security baseline
