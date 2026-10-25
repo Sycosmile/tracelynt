@@ -78,6 +78,20 @@ test('private case API enforces owner isolation and versions evidence reports', 
       method: 'GET', pathname: '/api/cases/' + caseId + '/reports', userId: userB
     });
     assert.equal(foreignReports.status, 404);
+
+    const unconfirmedDelete = await routeCaseRequest({
+      method: 'DELETE', pathname: '/api/cases/' + caseId, userId: userA, body: {}
+    });
+    assert.equal(unconfirmedDelete.status, 400);
+    const deleteRequest = await routeCaseRequest({
+      method: 'DELETE', pathname: '/api/cases/' + caseId, userId: userA, body: { confirm: true }
+    });
+    assert.equal(deleteRequest.status, 202);
+    assert.equal(deleteRequest.body.status, 'deletion_pending');
+    const hiddenAfterDeleteRequest = await routeCaseRequest({
+      method: 'GET', pathname: '/api/cases/' + caseId, userId: userA
+    });
+    assert.equal(hiddenAfterDeleteRequest.status, 404);
   } finally {
     const ids = [userA, userB];
     await pool.query('DELETE FROM cases WHERE owner_user_id = ANY($1::uuid[])', [ids]);
