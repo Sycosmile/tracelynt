@@ -8,11 +8,13 @@ Provisional implementation decisions for development. No hosting account, databa
 
 ### Backend runtime — decided
 
-Keep the existing Node.js 22+ backend and browser frontend for the first vertical slice. Do not migrate frameworks as part of the security work. Add only dependencies needed for PostgreSQL access, migrations, schema validation, and OIDC/session handling; pin versions and commit the lockfile.
+Keep the existing Node.js 22+ backend and browser frontend for the first vertical slice. Do not migrate frameworks as part of the security work. Direct dependency versions are pinned in `backend/package.json`; a committed npm lockfile and lockfile-enforced CI remain outstanding.
 
 ### Database — decided for development
 
-Use PostgreSQL. Develop locally first, using a local PostgreSQL instance (Docker Compose is the preferred reproducible option) and synthetic test data. Use checked-in, versioned SQL migrations; do not rely on manual dashboard edits. Keep the database private to the application and bind local development services to localhost.
+Use PostgreSQL for the private workspace. Local development can use PostgreSQL installed on Windows, Docker Compose, or a suitably configured hosted development database. The public domain-inspection API and non-persistent report builder can run without a database; private case features and their integration tests require PostgreSQL.
+
+Use checked-in, versioned SQL migrations; do not rely on manual dashboard edits. Keep the database private to the application and bind local development services to localhost.
 
 Use a dedicated least-privilege application role at runtime. Migration credentials must be separate from runtime credentials. Parameterize queries and enforce case ownership in every query/service operation.
 
@@ -20,7 +22,7 @@ Use a dedicated least-privilege application role at runtime. Migration credentia
 
 Use OpenID Connect through a maintained client library and a server-managed, opaque session stored in PostgreSQL. Do not implement password storage, token signing, or cryptographic primitives from scratch. Store only a hash of the opaque session token. Set cookies Secure, HttpOnly, and SameSite in deployed environments; add CSRF protection for state-changing cookie-authenticated requests.
 
-The backend now has a configurable discovery-based OIDC authorization-code flow using the maintained openid-client library, state, nonce, PKCE, a browser-binding cookie, hashed opaque sessions, expiry/revocation, and CSRF checks. PostgreSQL-backed case/evidence/report services and owner-scoped audit writes are implemented. Automated tests use synthetic identities; real provider credentials are not required in CI.
+The backend has a configurable discovery-based OIDC authorization-code flow using the maintained `openid-client` library, state, nonce, PKCE, a browser-binding cookie, hashed opaque sessions, expiry/revocation, and CSRF checks. PostgreSQL-backed case/evidence/report services and owner-scoped audit writes are implemented. Automated tests use synthetic identities; real provider credentials are not required in CI.
 
 **Open gate:** choose a real OIDC provider only after reviewing account recovery, allowed sign-in methods, callback configuration, cost, data processing terms, and account deletion. No provider is configured or approved by this document.
 
@@ -40,14 +42,14 @@ Do not put private investigation records on free/sleeping prototype instances. A
 - Use synthetic fixtures in CI; do not use real people or real allegations in tests.
 - Retention periods remain an explicit pre-production decision; indefinite retention is not acceptable.
 
-## Implementation order
+## Implementation status and next steps
 
-1. Completed: local PostgreSQL configuration, migration runner, checksum ledger, and schema migrations.
+1. Completed: PostgreSQL configuration, migration runner, checksum ledger, and schema migrations.
 2. Completed in the backend: configurable OIDC flow, hashed sessions, expiry/revocation, and CSRF checks; provider credentials remain unconfigured.
 3. Implemented: owner-scoped case/evidence APIs, immutable report snapshots, and transactionally recorded audit events.
-4. In progress: run the PostgreSQL integration workflow and resolve any failures.
+4. Verified: the latest GitHub Actions run passed backend checks and PostgreSQL integration tests. Local PostgreSQL is optional for developing the public domain-inspection prototype but required for private workspace execution.
 5. Completed: connect the frontend to sign-in/session/case APIs, saved report versions, export, and deletion-request controls.
-6. Next: confirm the newest full CI workflow is green, then implement scheduled retention enforcement and backup expiry; real provider setup and end-to-end login verification remain blocked on provider selection.
+6. Next: add lockfile-based dependency reproducibility, expand security tests, and resolve stale documentation. Do not implement scheduled retention until a retention policy is explicitly approved.
 7. Before production: select and review the identity provider and host, add least-privilege runtime DB roles, backup/restore tests, distributed rate limiting, and operational monitoring.
 
 ## Release blockers
