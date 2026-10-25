@@ -39,6 +39,6 @@ The runner discovers versioned SQL migrations, creates a checksum ledger, serial
 
 ## Important boundaries
 
-Application queries enforce case ownership; UUIDs are identifiers, not authorization. The API currently implements owner-scoped case/evidence/report operations and OIDC/session code, but no real provider credentials or deployment are configured. The deletion endpoint marks a case deletion_pending; it does not yet purge records or expire backups. Account deletion, retention enforcement, backup restoration, least-privilege role provisioning, and operational monitoring remain release blockers.
+Application queries enforce case ownership; UUIDs are identifiers, not authorization. The API implements owner-scoped case/evidence/report operations, OIDC/session code, account deletion requests, and an explicit operator purge command. No real provider credentials or deployment are configured. A purge requires CONFIRM_PURGE_PENDING_CASES=YES and should only run after the retention policy is reviewed; it deletes pending primary database rows, not backup copies. Scheduling, approved retention periods, backup expiry/restoration, least-privilege role provisioning, and operational monitoring remain release blockers.
 
 GitHub Actions runs migration checks against PostgreSQL, including repeat application, schema verification, rollback of a deliberately broken migration, checksum mismatch detection, and database-backed authorization tests. Confirm the latest Actions result before relying on those checks.
