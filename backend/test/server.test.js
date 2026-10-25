@@ -1,20 +1,29 @@
-import test from 'node:test';
+import test, { before, after } from 'node:test';
 import assert from 'node:assert/strict';
 
 process.env.NODE_ENV = 'test';
 const { server } = await import('../src/server.js');
 
-test('serves the interface and allowlisted static assets from one origin', async t => {
+before(async () => {
   await new Promise((resolve, reject) => {
     server.once('error', reject);
     server.listen(0, '127.0.0.1', resolve);
   });
-  t.after(async () => {
-    await new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
-  });
+});
 
+after(async () => {
+  if (server.listening) {
+    await new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+  }
+});
+
+function baseUrl() {
   const address = server.address();
-  const base = 'http://127.0.0.1:' + address.port;
+  return 'http://127.0.0.1:' + address.port;
+}
+
+test('serves the interface and allowlisted static assets from one origin', async () => {
+  const base = baseUrl();
   const page = await fetch(base + '/');
   assert.equal(page.status, 200);
   assert.match(page.headers.get('content-type'), /text\/html/);
@@ -31,8 +40,7 @@ test('serves the interface and allowlisted static assets from one origin', async
 });
 
 test('returns safe errors for unsupported routes and invalid domain input', async () => {
-  const address = server.address();
-  const base = 'http://127.0.0.1:' + address.port;
+  const base = baseUrl();
   const missing = await fetch(base + '/not-a-static-file');
   assert.equal(missing.status, 404);
 
