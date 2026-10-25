@@ -16,7 +16,8 @@ Tracelynt is an evidence-led intelligence and verification workspace for researc
 - Evidence report builder for business/domain findings with source attribution, review states, timestamps, and explicit limitations.
 - PostgreSQL migrations for users, sessions, login transactions, cases, evidence, report versions, and audit events.
 - Configurable OpenID Connect authorization-code flow with state, nonce, PKCE, opaque server-side sessions, hashed session tokens, logout revocation, and CSRF checks.
-- Private case APIs for owner-scoped listing, creation, reading, updates, archive status, evidence records, versioned evidence summaries, and confirmed deletion requests.
+- Private case APIs for owner-scoped listing, creation, reading, updates, archive status, evidence records, versioned evidence summaries, audited report reads/exports, and confirmed deletion requests.
+- Account deletion requests that revoke sessions and mark the account and its cases for deletion, plus a guarded operator purge command.
 - PostgreSQL-backed CI coverage for migration repeatability, rollback, checksum protection, and two-user case isolation.
 
 ## Important limitations
@@ -24,7 +25,7 @@ Tracelynt is an evidence-led intelligence and verification workspace for researc
 - No identity provider credentials, provider account, hosted database, or production deployment is configured.
 - The browser interface has not yet been wired to the private case APIs; those APIs currently require a client to handle login, session/CSRF retrieval, and JSON requests.
 - A case deletion request marks the case as deletion_pending and hides it from normal access; scheduled physical deletion, backup expiry, and a retention policy are not implemented.
-- Account deletion, automated retention enforcement, distributed rate limiting, and backup restoration drills remain outstanding.
+- Automated retention enforcement, distributed rate limiting, backup expiry/restoration, and a scheduled purge remain outstanding. The manual purge command deletes pending records from the primary database only.
 - The existing /api/report endpoint creates an in-memory report from analyst-supplied data; case reports are persisted as immutable version snapshots.
 - CI is configured to test against PostgreSQL, but the latest workflow result must be checked before claiming the tests passed.
 
