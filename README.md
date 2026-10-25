@@ -10,6 +10,8 @@ Tracelynt is an evidence-led intelligence and verification workspace for researc
 
 - Domain normalization and validation.
 - DNS A/AAAA, MX, and TXT observations.
+- Phone-number syntax normalization for common Nigerian local formats and international-format inputs; no subscriber or carrier lookup.
+- Public-web search links for business and organization names, with an explicit external-provider privacy notice.
 - TLS certificate metadata from a validated public IPv4 address.
 - Same-origin browser interface served by the backend.
 - Request-size limits, no-store responses, CSP headers, and a basic in-memory per-IP rate limit.
