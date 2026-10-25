@@ -89,8 +89,11 @@ export const server = http.createServer(async (request, response) => {
   }
   if (request.method === 'GET' && pathname === '/auth/callback') {
     try {
-      const callbackUrl = new URL(request.url || '/auth/callback', appOrigin()).href;
-      const result = await completeLogin(callbackUrl, loginBinding(request));
+      const incomingUrl = new URL(request.url || '/auth/callback', appOrigin());
+      if (incomingUrl.pathname !== '/auth/callback') return send(response, 400, { error: 'LOGIN_FAILED' });
+      const callbackUrl = new URL('/auth/callback', appOrigin());
+      callbackUrl.search = incomingUrl.search;
+      const result = await completeLogin(callbackUrl.href, loginBinding(request));
       response.writeHead(302, { location: '/', 'set-cookie': result.setCookies, 'cache-control': 'no-store', 'referrer-policy': 'no-referrer' });
       return response.end();
     } catch (error) {
