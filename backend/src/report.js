@@ -32,7 +32,7 @@ function normalizeSourceUrl(value) {
   } catch {
     throw new Error('Source URL must be a valid HTTPS URL.');
   }
-  const hostname = url.hostname.toLowerCase().replace(/^\\[|\\]$/g, '').replace(/\\.$/, '');
+  const hostname = url.hostname.toLowerCase().replace(/^\[|\]$/g, '').replace(/\.$/, '');
   if (url.protocol !== 'https:' || url.username || url.password || !hostname.includes('.') || netIsIp(hostname)) {
     throw new Error('Source URL must be an HTTPS link to a named public source.');
   }
