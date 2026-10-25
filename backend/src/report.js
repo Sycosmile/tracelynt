@@ -1,3 +1,6 @@
+import net from 'node:net';
+import { isPublicIp } from './domain-check.js';
+
 const CATEGORIES = new Set([
   'public_record',
   'direct_observation',
@@ -30,7 +33,7 @@ function normalizeSourceUrl(value) {
   if (url.protocol !== 'https:' || url.username || url.password || !url.hostname.includes('.')) {
     throw new Error('Source URL must be an HTTPS link to a named public source.');
   }
-  if (url.hostname === 'localhost' || url.hostname.endsWith('.localhost') || url.hostname.endsWith('.local') || url.hostname.endsWith('.internal')) {
+  if ((net.isIP(url.hostname) && !isPublicIp(url.hostname)) || url.hostname === 'localhost' || url.hostname.endsWith('.localhost') || url.hostname.endsWith('.local') || url.hostname.endsWith('.internal')) {
     throw new Error('Local and internal source URLs are not allowed.');
   }
   url.hash = '';
