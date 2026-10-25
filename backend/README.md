@@ -86,7 +86,7 @@ Every case, evidence, and report query is scoped to the authenticated owner. Unk
 - Report versions are immutable snapshots; later evidence corrections do not silently rewrite previous reports.
 - The rate limiter is process-local and not sufficient for production abuse control.
 - Case and account deletion requests mark records deletion_pending, block normal case access, and revoke account sessions. The explicit operator command npm run purge:pending physically deletes pending cases and accounts and removes expired sessions/login transactions. Before running it, review the retention policy and set CONFIRM_PURGE_PENDING_CASES=YES. An optional PURGE_OWNER_IDS comma-separated UUID list limits a run to selected owners. No scheduled purge, approved retention period, backup expiry, or restoration drill is configured; deleting primary database rows does not remove backup copies.
-- The frontend has not yet been wired to the private case APIs.
+- The frontend is wired to the private case APIs, but end-to-end login remains unverified until a real OIDC provider is configured.
 - Use a least-privilege database role in any non-disposable environment; keep migration credentials separate from runtime credentials.
 - Never commit real provider credentials or investigation records. Do not store sensitive production records until access-control, retention, deletion, monitoring, backup, provider, and hosting reviews are complete.
 
