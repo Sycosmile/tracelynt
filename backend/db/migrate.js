@@ -57,7 +57,7 @@ async function main() {
       "SELECT pg_advisory_xact_lock(hashtext('tracelynt:schema-migrations'));",
       'CREATE TABLE IF NOT EXISTS schema_migrations (version text PRIMARY KEY, checksum text NOT NULL, applied_at timestamptz NOT NULL DEFAULT now());',
       'DO $migration_guard$ BEGIN IF EXISTS (SELECT 1 FROM schema_migrations WHERE version = ' + versionLiteral + ' AND checksum <> ' + checksumLiteral + ') THEN RAISE EXCEPTION ' + quoteSqlLiteral('Checksum mismatch for migration ' + version + '; do not edit an applied migration.') + '; END IF; END $migration_guard$;',
-      'SELECT EXISTS (SELECT 1 FROM schema_migrations WHERE version = ' + versionLiteral + ') AS already_applied \\gset',
+      'SELECT CASE WHEN EXISTS (SELECT 1 FROM schema_migrations WHERE version = ' + versionLiteral + ') THEN \'true\' ELSE \'false\' END AS already_applied \\gset',
       '\\if :already_applied',
       '\\echo ' + version + ' already applied; skipping',
       '\\else',
