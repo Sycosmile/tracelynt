@@ -23,7 +23,7 @@ Tracelynt is an evidence-led intelligence and verification workspace for researc
 ## Important limitations
 
 - No identity provider credentials, provider account, hosted database, or production deployment is configured.
-- The browser interface has not yet been wired to the private case APIs; those APIs currently require a client to handle login, session/CSRF retrieval, and JSON requests.
+- The frontend now includes sign-in, case/evidence management, saved report versions, audited exports, and deletion-request controls. End-to-end sign-in still requires an operator-configured OIDC provider and has not been tested against real provider credentials.
 - A case deletion request marks the case as deletion_pending and hides it from normal access; scheduled physical deletion, backup expiry, and a retention policy are not implemented.
 - Automated retention enforcement, distributed rate limiting, backup expiry/restoration, and a scheduled purge remain outstanding. The manual purge command deletes pending records from the primary database only.
 - The existing /api/report endpoint creates an in-memory report from analyst-supplied data; case reports are persisted as immutable version snapshots.
