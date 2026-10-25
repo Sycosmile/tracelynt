@@ -4,6 +4,8 @@ const button = document.querySelector('#submit-button');
 const buttonLabel = document.querySelector('#button-label');
 const feedback = document.querySelector('#feedback');
 const results = document.querySelector('#results');
+const addDomainObservationsButton = document.querySelector('#add-domain-observations');
+let latestDomainReport = null;
 
 function textElement(tag, className, value) {
   const element = document.createElement(tag);
@@ -61,6 +63,8 @@ function renderTls(tls) {
 }
 
 function renderReport(report) {
+  latestDomainReport = report;
+  addDomainObservationsButton.disabled = false;
   document.querySelector('#result-domain').textContent = report.domain;
   document.querySelector('#retrieved-at').textContent = 'Retrieved ' + new Date(report.retrievedAt).toLocaleString();
   const grid = document.querySelector('#record-grid');
@@ -80,6 +84,68 @@ function renderReport(report) {
   showFeedback('Inspection completed. Review the limitations before interpreting these technical observations.', true);
   results.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
+
+
+function domainObservationFindings(report) {
+  const findings = [];
+  const timestamp = report.retrievedAt;
+  const dns = report.checks?.dns || {};
+  const describeRecords = (label, result, format) => {
+    const records = Array.isArray(result?.records) ? result.records : [];
+    const rendered = records.map(format);
+    const detail = rendered.length ? rendered.join('; ') : 'no record values returned';
+    findings.push({
+      claim: label + ' lookup returned status "' + (result?.status || 'unknown') + '" at ' + timestamp + ' (' + detail + ').',
+      sourceName: 'Tracelynt domain inspection',
+      sourceUrl: '',
+      category: 'direct_observation',
+      verificationState: 'unreviewed',
+      notes: 'System-generated technical observation for ' + report.domain + '. This is not an ownership or legitimacy determination. Review the inspection timestamp and limitations in the original results.'
+    });
+  };
+  describeRecords('DNS A (IPv4)', dns.ipv4, value => String(value));
+  describeRecords('DNS AAAA (IPv6)', dns.ipv6, value => String(value));
+  describeRecords('DNS MX (mail routing)', dns.mx, value => String(value.priority) + ' · ' + String(value.exchange));
+  describeRecords('DNS TXT', dns.txt, value => String(value));
+  const tls = report.checks?.tls || {};
+  const tlsDetail = tls.status === 'ok'
+    ? 'certificate authorized=' + String(Boolean(tls.authorized)) + '; protocol=' + (tls.protocol || 'not reported') + '; subject=' + (tls.subject || 'not reported') + '; issuer=' + (tls.issuer || 'not reported') + '; valid from=' + (tls.validFrom || 'not reported') + '; valid to=' + (tls.validTo || 'not reported')
+    : 'TLS status=' + (tls.status || 'unknown') + '; detail=' + (tls.reason || tls.error || 'not reported');
+  findings.push({
+    claim: 'TLS certificate inspection for ' + report.domain + ' at ' + timestamp + ': ' + tlsDetail + '.',
+    sourceName: 'Tracelynt domain inspection',
+    sourceUrl: '',
+    category: 'direct_observation',
+    verificationState: 'unreviewed',
+    notes: 'System-generated point-in-time observation. A TLS certificate does not prove business ownership, operator identity, or legitimacy.'
+  });
+  return findings;
+}
+
+addDomainObservationsButton.addEventListener('click', () => {
+  if (!latestDomainReport) {
+    reportMessage('Inspect a domain first, then add its observations.');
+    return;
+  }
+  const subjectName = document.querySelector('#subject-name');
+  const subjectType = document.querySelector('#subject-type');
+  subjectType.value = 'domain';
+  subjectName.value = latestDomainReport.domain;
+  const candidates = domainObservationFindings(latestDomainReport);
+  const available = 20 - draftFindings.length;
+  if (available <= 0) {
+    reportMessage('The report already has 20 findings. Remove a finding before adding domain observations.');
+    return;
+  }
+  const toAdd = candidates.slice(0, available);
+  draftFindings.push(...toAdd);
+  generatedReport = null;
+  reportOutput.hidden = true;
+  renderDraftFindings();
+  addDomainObservationsButton.disabled = true;
+  reportMessage('Added ' + toAdd.length + ' technical observations from the latest inspection. They are marked unreviewed and do not establish identity or legitimacy.', true);
+  document.querySelector('#evidence-report').scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
 
 form.addEventListener('submit', async event => {
   event.preventDefault();
@@ -234,12 +300,16 @@ function renderGeneratedReport(report) {
       textElement('h4', '', finding.id + '. ' + finding.claim),
       textElement('p', 'draft-meta', finding.category.replaceAll('_', ' ') + ' · ' + finding.verificationState.replaceAll('_', ' '))
     );
-    const source = document.createElement('a');
-    source.href = finding.source.url;
-    source.target = '_blank';
-    source.rel = 'noopener noreferrer';
-    source.textContent = finding.source.name + ' — ' + finding.source.url;
-    article.append(source);
+    if (finding.source.url) {
+      const source = document.createElement('a');
+      source.href = finding.source.url;
+      source.target = '_blank';
+      source.rel = 'noopener noreferrer';
+      source.textContent = finding.source.name + ' — ' + finding.source.url;
+      article.append(source);
+    } else {
+      article.append(textElement('p', 'draft-meta', finding.source.name + ' · system-generated observation; no external source URL'));
+    }
     if (finding.notes) article.append(textElement('p', 'report-note', finding.notes));
     container.append(article);
   });
