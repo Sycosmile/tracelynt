@@ -70,6 +70,23 @@ test('private case API enforces owner isolation and versions evidence reports', 
     });
     assert.equal(report.status, 201);
     assert.match(report.body.report.reportData.interpretation.statement, /not independently verified/);
+    const reportId = report.body.report.id;
+    const ownReportRead = await routeCaseRequest({
+      method: 'GET', pathname: '/api/cases/' + caseId + '/reports/' + reportId, userId: userA
+    });
+    assert.equal(ownReportRead.status, 200);
+    const foreignReportRead = await routeCaseRequest({
+      method: 'GET', pathname: '/api/cases/' + caseId + '/reports/' + reportId, userId: userB
+    });
+    assert.equal(foreignReportRead.status, 404);
+    const ownExport = await routeCaseRequest({
+      method: 'POST', pathname: '/api/cases/' + caseId + '/reports/' + reportId + '/export', userId: userA, body: {}
+    });
+    assert.equal(ownExport.status, 200);
+    const foreignExport = await routeCaseRequest({
+      method: 'POST', pathname: '/api/cases/' + caseId + '/reports/' + reportId + '/export', userId: userB, body: {}
+    });
+    assert.equal(foreignExport.status, 404);
 
     const secondReport = await routeCaseRequest({
       method: 'POST', pathname: '/api/cases/' + caseId + '/reports', userId: userA, body: {}
