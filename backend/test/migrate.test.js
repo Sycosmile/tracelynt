@@ -37,3 +37,14 @@ test('migration runner refuses to start without DATABASE_URL', async () => {
   assert.equal(result.status, 1);
   assert.match(result.stderr, /DATABASE_URL is required/);
 });
+
+test('pending-case purge refuses to run without explicit confirmation', async () => {
+  const runnerPath = fileURLToPath(new URL('../db/purge-pending-cases.js', import.meta.url));
+  const { spawnSync } = await import('node:child_process');
+  const result = spawnSync(process.execPath, [runnerPath], {
+    env: { ...process.env, DATABASE_URL: '', CONFIRM_PURGE_PENDING_CASES: '' },
+    encoding: 'utf8'
+  });
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /Refusing to purge/);
+});
