@@ -4,21 +4,31 @@
 
 Tracelynt is an evidence-led intelligence and verification workspace for researching public information, documenting findings, and assessing claims with transparent sources and limitations.
 
-> **Status: early prototype.** The repository contains the product foundation, a domain-intelligence API, and a small browser interface. It is not a production-ready lookup service, and no external provider integrations are configured.
+> **Status: development prototype.** The repository contains a domain-intelligence API, analyst-supplied report builder, PostgreSQL schema, configurable OIDC login, server-side sessions, and owner-scoped case/evidence/report APIs. It is not production-ready; no real identity provider or production environment is configured.
 
 ## Current implementation
 
-- Domain normalization and input validation.
+- Domain normalization and validation.
 - DNS A/AAAA, MX, and TXT observations.
 - TLS certificate metadata from a validated public IPv4 address.
 - Same-origin browser interface served by the backend.
-- Explicit frontend asset allowlist, request-size limits, no-store responses, and a basic in-memory rate limit.
+- Request-size limits, no-store responses, CSP headers, and a basic in-memory per-IP rate limit.
 - Evidence report builder for business/domain findings with source attribution, review states, timestamps, and explicit limitations.
-- JSON export and browser print-to-PDF workflow for generated reports; reports are not stored server-side.
-- Tests for domain validation, IP-range guards, report validation, API responses, and static asset serving.
-- GitHub Actions workflow for JavaScript syntax checks and automated tests.
+- PostgreSQL migrations for users, sessions, login transactions, cases, evidence, report versions, and audit events.
+- Configurable OpenID Connect authorization-code flow with state, nonce, PKCE, opaque server-side sessions, hashed session tokens, logout revocation, and CSRF checks.
+- Private case APIs for owner-scoped listing, creation, reading, updates, archive status, evidence records, versioned evidence summaries, and confirmed deletion requests.
+- PostgreSQL-backed CI coverage for migration repeatability, rollback, checksum protection, and two-user case isolation.
 
-See [Backend](backend/README.md) and [Frontend](frontend/README.md) for setup and limitations. Run the test suite with npm from the backend directory.
+## Important limitations
+
+- No identity provider credentials, provider account, hosted database, or production deployment is configured.
+- The browser interface has not yet been wired to the private case APIs; those APIs currently require a client to handle login, session/CSRF retrieval, and JSON requests.
+- A case deletion request marks the case as deletion_pending and hides it from normal access; scheduled physical deletion, backup expiry, and a retention policy are not implemented.
+- Account deletion, automated retention enforcement, distributed rate limiting, and backup restoration drills remain outstanding.
+- The existing /api/report endpoint creates an in-memory report from analyst-supplied data; case reports are persisted as immutable version snapshots.
+- CI is configured to test against PostgreSQL, but the latest workflow result must be checked before claiming the tests passed.
+
+See [Backend](backend/README.md), [Database setup](backend/db/README.md), [Product requirements](docs/PRODUCT_REQUIREMENTS.md), and [Security design](docs/CASE_WORKSPACE_DESIGN.md).
 
 ## Product direction
 
@@ -27,9 +37,7 @@ See [Backend](backend/README.md) and [Frontend](frontend/README.md) for setup an
 - Business and website checks based on appropriately sourced information.
 - Analyst-authored evidence reports; official registry/provider integrations remain unconfigured.
 - Evidence correlation with timestamps, source attribution, uncertainty, and correction history.
-- Private investigation workspaces and reports with controlled access.
-
-The evidence report builder is implemented, but it records author-supplied claims and links only; it does not independently verify source content. Other items remain product goals, not claims that integrations or data sources already exist.
+- Private investigation workspaces with controlled access.
 
 ## Principles
 
@@ -43,26 +51,33 @@ The evidence report builder is implemented, but it records author-supplied claim
 
 ## Repository layout
 
-- backend/: domain-intelligence and evidence-report API, with tests
+- backend/: domain-intelligence API, auth/session modules, case services, migrations, and tests
 - frontend/: responsive domain-inspection interface and evidence report builder
 - docs/PRODUCT_REQUIREMENTS.md: scope and acceptance criteria
 - docs/ARCHITECTURE.md: design and network safeguards
 - docs/SECURITY.md: threat model and security baseline
 - docs/DATA_GOVERNANCE.md: privacy, data handling, and retention
-- docs/ROADMAP.md: phased development plan
+- docs/CASE_WORKSPACE_DESIGN.md: private workspace design and security constraints
 - .env.example: placeholder configuration template
 - .gitignore: excludes local secrets and investigation data
 
 ## Development
 
-Requirements: Node.js 22 or newer. The API uses Node.js built-ins and has no third-party runtime dependencies.
+Requirements: Node.js 22+, Docker Compose or PostgreSQL 17, and the PostgreSQL psql client for migrations. Backend dependencies include pg and openid-client.
 
-    cd backend
-    npm test
+From the repository root, start the local database:
+
+    docker compose up -d postgres
+
+From backend, install dependencies, configure local environment variables, apply migrations, then run checks:
+
+    npm install
+    npm run migrate
     npm run check
+    npm test
     npm start
 
-Open http://127.0.0.1:8000 after starting the server. Keep the service bound to localhost during development.
+The server binds to 127.0.0.1:8000 by default. See [backend setup](backend/README.md) for OIDC configuration. Keep the service local during development and use synthetic data only.
 
 ## Responsible-use boundary
 
