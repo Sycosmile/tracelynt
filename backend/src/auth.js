@@ -34,8 +34,15 @@ function baseUrl() {
 
 function oidcConfig() {
   if (!oidcConfigPromise) {
+    const issuer = new URL(requiredEnv('OIDC_ISSUER'));
+    const localDevelopmentIssuer = process.env.NODE_ENV !== 'production'
+      && ['localhost', '127.0.0.1', '[::1]'].includes(issuer.hostname);
+    if (issuer.username || issuer.password || issuer.search || issuer.hash
+      || (issuer.protocol !== 'https:' && !(localDevelopmentIssuer && issuer.protocol === 'http:'))) {
+      throw new Error('OIDC_ISSUER must be a trusted HTTPS issuer (HTTP is allowed only for local development).');
+    }
     oidcConfigPromise = oidc.discovery(
-      new URL(requiredEnv('OIDC_ISSUER')),
+      issuer,
       requiredEnv('OIDC_CLIENT_ID'),
       requiredEnv('OIDC_CLIENT_SECRET')
     ).catch((error) => {
