@@ -354,6 +354,7 @@ let workspaceCsrfToken = null;
 let selectedCase = null;
 let workspaceCases = [];
 let selectedReportData = null;
+let selectedReportId = null;
 
 function setWorkspaceMessage(message, success = false) {
   workspaceMessage.hidden = false;
@@ -448,6 +449,7 @@ async function openCase(caseId) {
   caseDetail.hidden = false;
   caseReportOutput.hidden = true;
   selectedReportData = null;
+  selectedReportId = null;
   document.querySelector('#case-report-download').hidden = true;
   document.querySelector('#selected-case-title').textContent = selectedCase.title;
   document.querySelector('#selected-case-meta').textContent =
@@ -543,11 +545,17 @@ async function loadCaseReports(caseId) {
         textElement('strong', '', 'Report version ' + report.versionNumber),
         textElement('span', 'draft-meta', 'Generated ' + new Date(report.generatedAt).toLocaleString())
       );
-      view.addEventListener('click', () => {
-        selectedReportData = report.reportData;
-        caseReportOutput.textContent = JSON.stringify(report.reportData, null, 2);
-        caseReportOutput.hidden = false;
-        document.querySelector('#case-report-download').hidden = false;
+      view.addEventListener('click', async () => {
+        try {
+          const detail = await workspaceRequest('/api/cases/' + encodeURIComponent(caseId) + '/reports/' + encodeURIComponent(report.id));
+          selectedReportData = detail.report.reportData;
+          selectedReportId = report.id;
+          caseReportOutput.textContent = JSON.stringify(selectedReportData, null, 2);
+          caseReportOutput.hidden = false;
+          document.querySelector('#case-report-download').hidden = false;
+        } catch (error) {
+          setWorkspaceMessage(error.message);
+        }
       });
       item.append(view);
       list.append(item);
@@ -662,6 +670,7 @@ document.querySelector('#generate-case-report').addEventListener('click', async 
       body: '{}'
     });
     selectedReportData = payload.report.reportData;
+    selectedReportId = payload.report.id;
     caseReportOutput.textContent = JSON.stringify(selectedReportData, null, 2);
     caseReportOutput.hidden = false;
     document.querySelector('#case-report-download').hidden = false;
@@ -674,17 +683,26 @@ document.querySelector('#generate-case-report').addEventListener('click', async 
 
 refreshWorkspace();
 
-document.querySelector('#case-report-download').addEventListener('click', () => {
-  if (!selectedReportData) return;
-  const file = new Blob([JSON.stringify(selectedReportData, null, 2)], { type: 'application/json;charset=utf-8' });
-  const url = URL.createObjectURL(file);
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = 'tracelynt-case-report.json';
-  document.body.append(anchor);
-  anchor.click();
-  anchor.remove();
-  URL.revokeObjectURL(url);
+document.querySelector('#case-report-download').addEventListener('click', async () => {
+  if (!selectedReportData || !selectedReportId || !selectedCase) return;
+  try {
+    const payload = await workspaceRequest('/api/cases/' + encodeURIComponent(selectedCase.id) + '/reports/' + encodeURIComponent(selectedReportId) + '/export', {
+      method: 'POST',
+      body: '{}'
+    });
+    const file = new Blob([JSON.stringify(payload.report.reportData, null, 2)], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(file);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = 'tracelynt-case-report-v' + payload.report.versionNumber + '.json';
+    document.body.append(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+    setWorkspaceMessage('Report export recorded in the audit log.', true);
+  } catch (error) {
+    setWorkspaceMessage(error.message);
+  }
 });
 
 document.querySelector('#workspace-delete-account').addEventListener('click', async () => {
