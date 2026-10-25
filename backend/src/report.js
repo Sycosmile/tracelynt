@@ -71,7 +71,9 @@ export function createEvidenceReport(input, now = () => new Date()) {
       verificationState,
       source: {
         name: cleanText(item.sourceName, 'Source name', 160),
-        url: normalizeSourceUrl(item.sourceUrl)
+        url: category === 'direct_observation' && !String(item.sourceUrl ?? '').trim()
+          ? null
+          : normalizeSourceUrl(item.sourceUrl)
       },
       notes: cleanText(item.notes ?? '', 'Finding notes', 1000, false)
     };
