@@ -118,3 +118,37 @@ test('rejects unsafe source URLs in evidence reports', async () => {
   assert.equal(response.status, 400);
   assert.equal((await response.json()).error, 'INVALID_REPORT');
 });
+
+test('enforces JSON content type and body limits while returning baseline security headers', async () => {
+  const base = baseUrl();
+  const missing = await fetch(base + '/not-a-static-file');
+  assert.equal(missing.status, 404);
+  assert.equal(missing.headers.get('cache-control'), 'no-store');
+  assert.equal(missing.headers.get('x-content-type-options'), 'nosniff');
+  assert.equal(missing.headers.get('content-security-policy'), "default-src 'none'");
+  assert.equal(missing.headers.get('referrer-policy'), 'no-referrer');
+
+  const wrongType = await fetch(base + '/api/domain-check', {
+    method: 'POST',
+    headers: { 'content-type': 'text/plain' },
+    body: '{"domain":"example.com"}'
+  });
+  assert.equal(wrongType.status, 415);
+  assert.equal((await wrongType.json()).error, 'JSON_REQUIRED');
+
+  const malformed = await fetch(base + '/api/domain-check', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: '{"domain":'
+  });
+  assert.equal(malformed.status, 400);
+  assert.equal((await malformed.json()).error, 'DOMAIN_CHECK_FAILED');
+
+  const oversized = await fetch(base + '/api/domain-check', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ domain: 'x'.repeat(2048) })
+  });
+  assert.equal(oversized.status, 413);
+  assert.equal((await oversized.json()).error, 'DOMAIN_CHECK_FAILED');
+});
