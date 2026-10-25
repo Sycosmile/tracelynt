@@ -23,11 +23,11 @@ Tracelynt is an evidence-led intelligence and verification workspace for researc
 ## Important limitations
 
 - No identity provider credentials, provider account, hosted database, or production deployment is configured.
-- The frontend now includes sign-in, case/evidence management, saved report versions, audited exports, and deletion-request controls. End-to-end sign-in still requires an operator-configured OIDC provider and has not been tested against real provider credentials.
-- A case deletion request marks the case as deletion_pending and hides it from normal access; scheduled physical deletion, backup expiry, and a retention policy are not implemented.
+- The frontend includes sign-in, case/evidence management, saved report versions, audited exports, and deletion-request controls. End-to-end sign-in still requires an operator-configured OIDC provider and has not been tested against real provider credentials.
+- A case deletion request marks the case as `deletion_pending` and hides it from normal access; scheduled physical deletion, backup expiry, and an approved retention policy are not implemented.
 - Automated retention enforcement, distributed rate limiting, backup expiry/restoration, and a scheduled purge remain outstanding. The manual purge command deletes pending records from the primary database only.
-- The existing /api/report endpoint creates an in-memory report from analyst-supplied data; case reports are persisted as immutable version snapshots.
-- CI is configured to test against PostgreSQL, but the latest workflow result must be checked before claiming the tests passed.
+- The existing `/api/report` endpoint creates an in-memory report from analyst-supplied data; case reports are persisted as immutable version snapshots.
+- The latest checked GitHub Actions run passed both backend checks and PostgreSQL integration tests. Local tests that require PostgreSQL still need a reachable database.
 
 See [Backend](backend/README.md), [Database setup](backend/db/README.md), [Product requirements](docs/PRODUCT_REQUIREMENTS.md), and [Security design](docs/CASE_WORKSPACE_DESIGN.md).
 
@@ -52,33 +52,30 @@ See [Backend](backend/README.md), [Database setup](backend/db/README.md), [Produ
 
 ## Repository layout
 
-- backend/: domain-intelligence API, auth/session modules, case services, migrations, and tests
-- frontend/: responsive domain-inspection interface and evidence report builder
-- docs/PRODUCT_REQUIREMENTS.md: scope and acceptance criteria
-- docs/ARCHITECTURE.md: design and network safeguards
-- docs/SECURITY.md: threat model and security baseline
-- docs/DATA_GOVERNANCE.md: privacy, data handling, and retention
-- docs/CASE_WORKSPACE_DESIGN.md: private workspace design and security constraints
-- .env.example: placeholder configuration template
-- .gitignore: excludes local secrets and investigation data
+- `backend/`: domain-intelligence API, auth/session modules, case services, migrations, and tests
+- `frontend/`: responsive domain-inspection interface and evidence report builder
+- `docs/PRODUCT_REQUIREMENTS.md`: scope and acceptance criteria
+- `docs/ARCHITECTURE.md`: implemented design and network safeguards
+- `docs/SECURITY.md`: threat model and security baseline
+- `docs/DATA_GOVERNANCE.md`: privacy, data handling, and retention
+- `docs/CASE_WORKSPACE_DESIGN.md`: private workspace design and security constraints
+- `.env.example`: placeholder configuration template
+- `.gitignore`: excludes local secrets and investigation data
 
 ## Development
 
-Requirements: Node.js 22+, Docker Compose or PostgreSQL 17, and the PostgreSQL psql client for migrations. Backend dependencies include pg and openid-client.
+Requirements for the public domain-inspection prototype: Node.js 22+ and npm. You can install dependencies and run the backend without installing Docker or PostgreSQL; domain checks and the non-persistent report builder do not require the case database.
 
-From the repository root, start the local database:
+From the repository root:
 
-    docker compose up -d postgres
-
-From backend, install dependencies, configure local environment variables, apply migrations, then run checks:
-
+    cd backend
     npm install
-    npm run migrate
     npm run check
-    npm test
     npm start
 
-The server binds to 127.0.0.1:8000 by default. See [backend setup](backend/README.md) for OIDC configuration. Keep the service local during development and use synthetic data only.
+Open `http://127.0.0.1:8000`. Keep the service local and use synthetic data only.
+
+**Private workspace setup requires PostgreSQL and the `psql` client.** You can use PostgreSQL installed locally, Docker Compose, or a properly configured hosted development database. Set `DATABASE_URL`, apply migrations with `npm run migrate`, and configure the OIDC environment variables before testing sign-in or database-backed case features. See [backend setup](backend/README.md) and [database setup](backend/db/README.md). Tests requiring PostgreSQL must run with a test database; GitHub Actions provides one for integration CI.
 
 ## Responsible-use boundary
 
