@@ -32,25 +32,20 @@
     <section class="report-builder" aria-labelledby="identity-search-title">
       <p class="eyebrow">PUBLIC RESEARCH / 02</p>
       <h2 id="identity-search-title">Search public sources.</h2>
-      <p class="report-intro">Normalize a phone number or open a public-web search for a name, number, or both. Search providers receive the query only when you choose to open a result link.</p>
+      <p class="report-intro">Normalize a phone number or search public web sources for a business or organization. Search providers receive the query only when you choose to open a result link.</p>
       <form id="public-lookup-form" class="finding-form">
         <div class="field">
           <label for="public-lookup-type">Lookup type</label>
           <select id="public-lookup-type">
             <option value="phone">Phone number format</option>
-            <option value="name">Name in public sources</option>
-            <option value="combined">Name + phone search</option>
+            <option value="name">Business or organization name</option>
           </select>
         </div>
         <div class="field">
           <label for="public-lookup-value" id="public-lookup-label">Phone number</label>
           <input id="public-lookup-value" maxlength="160" required placeholder="+234 801 234 5678" autocomplete="off">
         </div>
-        <div class="field" id="public-lookup-secondary-field" hidden>
-          <label for="public-lookup-secondary">Phone number</label>
-          <input id="public-lookup-secondary" maxlength="40" placeholder="+234 801 234 5678" autocomplete="off">
-        </div>
-        <div class="report-actions"><button type="submit" id="public-lookup-submit">Check number format</button></div>
+                <div class="report-actions"><button type="submit" id="public-lookup-submit">Check number format</button></div>
         <p class="hint">This prototype does not access subscriber records or verify a person's identity. Name and combined searches open public search-engine links; they do not establish that results refer to the same person.</p>
       </form>
       <section id="public-lookup-output" class="report-output" aria-live="polite" hidden>
