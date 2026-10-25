@@ -79,6 +79,27 @@ test('builds evidence reports from supplied claims without claiming independent 
   assert.ok(report.generatedAt);
 });
 
+test('accepts system-generated direct observations without inventing an external source URL', async () => {
+  const response = await fetch(baseUrl() + '/api/report', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      subject: { type: 'domain', name: 'example.com' },
+      findings: [{
+        claim: 'A record lookup returned an observation.',
+        category: 'direct_observation',
+        verificationState: 'unreviewed',
+        sourceName: 'Tracelynt domain inspection',
+        sourceUrl: '',
+        notes: 'Point-in-time technical observation.'
+      }]
+    })
+  });
+  assert.equal(response.status, 200);
+  const report = await response.json();
+  assert.equal(report.findings[0].source.url, null);
+});
+
 test('rejects unsafe source URLs in evidence reports', async () => {
   const response = await fetch(baseUrl() + '/api/report', {
     method: 'POST',
