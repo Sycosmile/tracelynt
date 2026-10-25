@@ -1,6 +1,3 @@
-import net from 'node:net';
-import { isPublicIp } from './domain-check.js';
-
 const CATEGORIES = new Set([
   'public_record',
   'direct_observation',
@@ -10,6 +7,7 @@ const CATEGORIES = new Set([
 ]);
 const STATES = new Set(['unreviewed', 'corroborated', 'disputed', 'unavailable', 'retracted']);
 const MAX_FINDINGS = 20;
+const RESERVED_SOURCE_SUFFIXES = ['localhost', 'local', 'internal', 'test', 'invalid', 'example', 'onion'];
 
 function cleanText(value, label, maxLength, required = true) {
   if (typeof value !== 'string') {
@@ -22,7 +20,7 @@ function cleanText(value, label, maxLength, required = true) {
   return result;
 }
 
-function normalizeSourceUrl(value) {
+function netIsIp(hostname) {\n  return /^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}$/.test(hostname) || hostname.includes(':');\n}\n\nfunction normalizeSourceUrl(value) {
   const raw = cleanText(value, 'Source URL', 2048);
   let url;
   try {
@@ -30,11 +28,12 @@ function normalizeSourceUrl(value) {
   } catch {
     throw new Error('Source URL must be a valid HTTPS URL.');
   }
-  if (url.protocol !== 'https:' || url.username || url.password || !url.hostname.includes('.')) {
+  const hostname = url.hostname.toLowerCase().replace(/^\\[|\\]$/g, '').replace(/\\.$/, '');
+  if (url.protocol !== 'https:' || url.username || url.password || !hostname.includes('.') || netIsIp(hostname)) {
     throw new Error('Source URL must be an HTTPS link to a named public source.');
   }
-  if ((net.isIP(url.hostname) && !isPublicIp(url.hostname)) || url.hostname === 'localhost' || url.hostname.endsWith('.localhost') || url.hostname.endsWith('.local') || url.hostname.endsWith('.internal')) {
-    throw new Error('Local and internal source URLs are not allowed.');
+  if (RESERVED_SOURCE_SUFFIXES.some(suffix => hostname === suffix || hostname.endsWith('.' + suffix))) {
+    throw new Error('Local, reserved, and internal source URLs are not allowed.');
   }
   url.hash = '';
   return url.toString();
