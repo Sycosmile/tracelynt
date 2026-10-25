@@ -6,7 +6,6 @@ import { routeCaseRequest } from '../src/cases.js';
 import { requestAccountDeletion } from '../src/auth.js';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import path from 'node:path';
 
 test('private case API enforces owner isolation and versions evidence reports', { skip: !process.env.DATABASE_URL }, async () => {
   const pool = getPool();
@@ -100,7 +99,7 @@ test('private case API enforces owner isolation and versions evidence reports', 
     await requestAccountDeletion(userB);
     const purgePath = fileURLToPath(new URL('../db/purge-pending-cases.js', import.meta.url));
     const purge = spawnSync(process.execPath, [purgePath], {
-      env: { ...process.env, CONFIRM_PURGE_PENDING_CASES: 'YES' },
+      env: { ...process.env, CONFIRM_PURGE_PENDING_CASES: 'YES', PURGE_OWNER_IDS: [userA, userB].join(',') },
       encoding: 'utf8'
     });
     assert.equal(purge.status, 0, purge.stderr);
