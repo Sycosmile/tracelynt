@@ -17,6 +17,8 @@ Open http://127.0.0.1:8000 in a browser. The interface sends domain checks to th
 - DNS A, AAAA, MX, and TXT observations.
 - TLS certificate metadata.
 - Retrieval timestamp and explicit limitations.
+- Business/domain evidence report builder with source attribution, analyst notes, and review states.
+- JSON export and browser print-to-PDF workflow for generated reports.
 - Responsive layout and accessible status announcements.
 
 ## Security requirements
@@ -29,3 +31,7 @@ Open http://127.0.0.1:8000 in a browser. The interface sends domain checks to th
 - Authentication, private case workspaces, report export, and production hardening are not implemented yet.
 
 This is a prototype, not a production-ready application.
+
+## Evidence reports
+
+The report builder collects analyst-supplied claims and HTTPS source links, then asks the API to normalize them into a timestamped report. It does not fetch the linked pages, verify a business against a registry, or save the report. The exported JSON and print output state those limitations. Reports may contain sensitive case material, so store exports securely and include only information needed for the stated purpose.
