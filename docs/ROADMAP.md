@@ -43,6 +43,9 @@ Exit criteria: cross-user access tests pass; access and retention behavior are v
 ## Phase 3 — phone-number metadata
 
 - [ ] Add numbering-plan parsing and normalization.
+- [ ] Add a phone lookup interface with country/number-format metadata and explicit limits.
+- [ ] Add public-source name search with visible external-provider handoff and privacy notice.
+- [ ] Support combined name-and-number research without treating a match as identity proof.
 - [ ] Show only supported metadata with source and timestamp.
 - [ ] Review provider terms, permissions, and retention.
 - [ ] Distinguish number control from identity in UI and reports.
