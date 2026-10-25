@@ -1,6 +1,7 @@
 import http from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { inspectDomain } from './domain-check.js';
+import { createEvidenceReport } from './report.js';
 
 const HOST = process.env.HOST || '127.0.0.1';
 const PORT = Number.parseInt(process.env.PORT || '8000', 10);
@@ -38,12 +39,12 @@ function allowedByRateLimit(address) {
   return true;
 }
 
-async function readJson(request) {
+async function readJson(request, limit = BODY_LIMIT) {
   const chunks = [];
   let total = 0;
   for await (const chunk of request) {
     total += chunk.length;
-    if (total > BODY_LIMIT) throw Object.assign(new Error('Request body too large.'), { statusCode: 413 });
+    if (total > limit) throw Object.assign(new Error('Request body too large.'), { statusCode: 413 });
     chunks.push(chunk);
   }
   try {
@@ -74,16 +75,23 @@ export const server = http.createServer(async (request, response) => {
   if (request.method === 'GET' && pathname === '/health') {
     return send(response, 200, { status: 'ok', service: 'tracelynt-domain-api' });
   }
-  if (request.method !== 'POST' || pathname !== '/api/domain-check') {
-    return send(response, 404, { error: 'NOT_FOUND' });
-  }
+  const isDomainCheck = request.method === 'POST' && pathname === '/api/domain-check';
+  const isReport = request.method === 'POST' && pathname === '/api/report';
+  if (!isDomainCheck && !isReport) return send(response, 404, { error: 'NOT_FOUND' });
   const address = request.socket.remoteAddress || 'unknown';
   if (!allowedByRateLimit(address)) return send(response, 429, { error: 'RATE_LIMITED' });
   if (!String(request.headers['content-type'] || '').toLowerCase().includes('application/json')) {
     return send(response, 415, { error: 'JSON_REQUIRED' });
   }
   try {
-    const body = await readJson(request);
+    const body = await readJson(request, isReport ? 12_288 : BODY_LIMIT);
+    if (isReport) {
+      try {
+        return send(response, 200, createEvidenceReport(body));
+      } catch (error) {
+        return send(response, 400, { error: 'INVALID_REPORT', message: error.message || 'Report input is invalid.' });
+      }
+    }
     if (!body || typeof body.domain !== 'string') {
       return send(response, 400, { error: 'INVALID_INPUT', message: 'Provide a domain string.' });
     }
