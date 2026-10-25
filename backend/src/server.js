@@ -57,8 +57,6 @@ async function readJson(request, limit = BODY_LIMIT) {
   }
 }
 
-function logoutCookieHeaders() { return []; }
-
 export const server = http.createServer(async (request, response) => {
   const pathname = new URL(request.url || '/', 'http://localhost').pathname;
   if (request.method === 'GET' && STATIC_FILES.has(pathname)) {
@@ -113,11 +111,6 @@ export const server = http.createServer(async (request, response) => {
   if (request.method === 'POST' && pathname === '/auth/logout') {
     try {
       assertCsrf(request);
-      const user = await currentUser(request);
-      if (!user) {
-        response.writeHead(401, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'set-cookie': logoutCookieHeaders() });
-        return response.end(JSON.stringify({ error: 'UNAUTHENTICATED' }));
-      }
       const cookies = await logout(request);
       response.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'set-cookie': cookies, 'x-content-type-options': 'nosniff' });
       return response.end(JSON.stringify({ ok: true }));
