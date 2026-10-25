@@ -2,7 +2,7 @@ import http from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { inspectDomain } from './domain-check.js';
 import { createEvidenceReport } from './report.js';
-import { appOrigin, assertCsrf, beginLogin, completeLogin, currentUser, getCsrfToken, loginBinding, logout } from './auth.js';
+import { appOrigin, assertCsrf, beginLogin, clearAuthCookies, completeLogin, currentUser, getCsrfToken, loginBinding, logout, requestAccountDeletion } from './auth.js';
 import { routeCaseRequest } from './cases.js';
 
 const HOST = process.env.HOST || '127.0.0.1';
@@ -126,6 +126,30 @@ export const server = http.createServer(async (request, response) => {
       return response.end(JSON.stringify({ ok: true }));
     } catch (error) {
       return send(response, error.statusCode || 503, { error: error.code || 'LOGOUT_FAILED' });
+    }
+  }
+  if (request.method === 'DELETE' && pathname === '/api/account') {
+    if (!allowedByRateLimit((request.socket.remoteAddress || 'unknown') + ':workspace', 120)) return send(response, 429, { error: 'RATE_LIMITED' });
+    try {
+      const user = await currentUser(request);
+      if (!user) return send(response, 401, { error: 'UNAUTHENTICATED' });
+      assertCsrf(request);
+      if (!String(request.headers['content-type'] || '').toLowerCase().includes('application/json')) return send(response, 415, { error: 'JSON_REQUIRED' });
+      const body = await readJson(request, BODY_LIMIT);
+      if (body?.confirm !== true) return send(response, 400, { error: 'CONFIRMATION_REQUIRED' });
+      await requestAccountDeletion(user.id);
+      response.writeHead(202, {
+        'content-type': 'application/json; charset=utf-8',
+        'cache-control': 'no-store',
+        'x-content-type-options': 'nosniff',
+        'set-cookie': clearAuthCookies()
+      });
+      return response.end(JSON.stringify({
+        status: 'deletion_pending',
+        message: 'Account sessions are revoked and owned cases are hidden. An operator must run the reviewed purge process to remove records.'
+      }));
+    } catch (error) {
+      return send(response, error.statusCode || (error.code === 'CSRF_DENIED' ? 403 : 503), { error: error.code || 'ACCOUNT_DELETION_FAILED' });
     }
   }
   if (pathname === '/api/cases' || pathname.startsWith('/api/cases/')) {
