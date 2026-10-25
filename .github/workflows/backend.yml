@@ -11,6 +11,7 @@ on:
   pull_request:
     paths:
       - "backend/**"
+      - "compose.yaml"
       - "frontend/**"
       - ".github/workflows/backend.yml"
 
@@ -34,3 +35,71 @@ jobs:
         run: npm run check
       - name: Run tests
         run: npm test
+
+  database-integration:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: tracelynt_test
+          POSTGRES_USER: tracelynt_app
+          POSTGRES_PASSWORD: integration-test-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U tracelynt_app -d tracelynt_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      DATABASE_URL: postgresql://tracelynt_app:integration-test-password@127.0.0.1:5432/tracelynt_test
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client
+      - name: Apply migrations and verify schema
+        run: |
+          npm run migrate
+          npm run migrate
+          test "$(psql "$DATABASE_URL" --no-psqlrc -Atc "SELECT count(*) FROM schema_migrations WHERE version = '001_initial_schema'")" = "1"
+          test "$(psql "$DATABASE_URL" --no-psqlrc -Atc "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('users', 'sessions', 'cases', 'evidence_items', 'report_versions', 'audit_events')")" = "6"
+      - name: Verify failed migrations roll back
+        run: |
+          probe="db/migrations/999_ci_rollback_probe.sql"
+          trap 'rm -f "$probe"' EXIT
+          cat > "$probe" <<'SQL'
+          CREATE TABLE migration_rollback_probe (id integer PRIMARY KEY);
+          INSERT INTO migration_rollback_probe (id) VALUES (1);
+          SELECT 1 / 0;
+          SQL
+          if npm run migrate; then
+            echo "Expected the deliberately broken migration to fail."
+            exit 1
+          fi
+          test "$(psql "$DATABASE_URL" --no-psqlrc -Atc "SELECT to_regclass('public.migration_rollback_probe') IS NULL")" = "t"
+          test "$(psql "$DATABASE_URL" --no-psqlrc -Atc "SELECT count(*) FROM schema_migrations WHERE version = '999_ci_rollback_probe'")" = "0"
+          rm -f "$probe"
+          trap - EXIT
+      - name: Verify applied migration checksum is immutable
+        run: |
+          migration="db/migrations/001_initial_schema.sql"
+          cp "$migration" "$migration.ci-backup"
+          trap 'mv "$migration.ci-backup" "$migration"' EXIT
+          printf '\n-- temporary CI checksum mutation\n' >> "$migration"
+          if npm run migrate; then
+            echo "Expected an applied migration checksum mismatch to fail."
+            exit 1
+          fi
+          mv "$migration.ci-backup" "$migration"
+          trap - EXIT
