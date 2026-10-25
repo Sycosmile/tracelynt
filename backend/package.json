@@ -1,0 +1,16 @@
+{
+  "name": "@tracelynt/backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Tracelynt domain-intelligence API foundation",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test": "node --test",
+    "check": "node --check src/domain-check.js && node --check src/server.js"
+  }
+}
