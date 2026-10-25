@@ -180,6 +180,8 @@ addFindingButton.addEventListener('click', () => {
   generatedReport = null;
   reportOutput.hidden = true;
   document.querySelector('#finding-claim').value = '';
+  document.querySelector('#source-name').value = '';
+  document.querySelector('#source-url').value = '';
   document.querySelector('#finding-notes').value = '';
   renderDraftFindings();
   reportMessage('Finding added to the draft. Add another or generate the report.', true);
