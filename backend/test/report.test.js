@@ -50,6 +50,20 @@ test('rejects non-HTTPS, credential-bearing, local, and private-IP source links'
   }
 });
 
+test('allows URL-free direct observations while retaining source attribution', () => {
+  const report = createEvidenceReport({
+    ...validInput,
+    findings: [{
+      ...validInput.findings[0],
+      category: 'direct_observation',
+      sourceName: 'Tracelynt domain inspection',
+      sourceUrl: ''
+    }]
+  });
+  assert.equal(report.findings[0].source.name, 'Tracelynt domain inspection');
+  assert.equal(report.findings[0].source.url, null);
+});
+
 test('requires source attribution and bounded text fields', () => {
   assert.throws(() => createEvidenceReport({ ...validInput, findings: [{ ...validInput.findings[0], sourceName: '' }] }), /Source name is required/);
   assert.throws(() => createEvidenceReport({ ...validInput, findings: [{ ...validInput.findings[0], claim: 'x'.repeat(1001) }] }), /Finding claim is too long/);
