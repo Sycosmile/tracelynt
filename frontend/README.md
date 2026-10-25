@@ -18,6 +18,8 @@ Open http://127.0.0.1:8000. The interface sends domain checks to the local API. 
 
 - Domain input and loading/error states.
 - DNS A, AAAA, MX, and TXT observations.
+- Phone-number syntax normalization for Nigerian local formats and international-format inputs.
+- Public-web search links for business/organization names, with disclosure that the selected search provider receives the query.
 - TLS certificate metadata.
 - Retrieval timestamp and explicit limitations.
 - Business/domain evidence report builder with source attribution, analyst notes, and review states.
