@@ -1,4 +1,5 @@
 import http from 'node:http';
+import { readFile } from 'node:fs/promises';
 import { inspectDomain } from './domain-check.js';
 
 const HOST = process.env.HOST || '127.0.0.1';
@@ -7,6 +8,12 @@ const BODY_LIMIT = 2048;
 const WINDOW_MS = 60_000;
 const REQUESTS_PER_WINDOW = 20;
 const rateWindows = new Map();
+const STATIC_FILES = new Map([
+  ['/', { file: new URL('../../frontend/index.html', import.meta.url), type: 'text/html; charset=utf-8' }],
+  ['/index.html', { file: new URL('../../frontend/index.html', import.meta.url), type: 'text/html; charset=utf-8' }],
+  ['/styles.css', { file: new URL('../../frontend/styles.css', import.meta.url), type: 'text/css; charset=utf-8' }],
+  ['/app.js', { file: new URL('../../frontend/app.js', import.meta.url), type: 'text/javascript; charset=utf-8' }]
+]);
 
 function send(response, status, body) {
   response.writeHead(status, {
@@ -48,6 +55,22 @@ async function readJson(request) {
 
 export const server = http.createServer(async (request, response) => {
   const pathname = new URL(request.url || '/', 'http://localhost').pathname;
+  if (request.method === 'GET' && STATIC_FILES.has(pathname)) {
+    try {
+      const asset = STATIC_FILES.get(pathname);
+      const content = await readFile(asset.file);
+      response.writeHead(200, {
+        'content-type': asset.type,
+        'cache-control': 'no-store',
+        'x-content-type-options': 'nosniff',
+        'content-security-policy': "default-src 'self'; connect-src 'self'; style-src 'self'; script-src 'self'; base-uri 'none'; frame-ancestors 'none'",
+        'referrer-policy': 'no-referrer'
+      });
+      return response.end(content);
+    } catch {
+      return send(response, 500, { error: 'ASSET_UNAVAILABLE' });
+    }
+  }
   if (request.method === 'GET' && pathname === '/health') {
     return send(response, 200, { status: 'ok', service: 'tracelynt-domain-api' });
   }
@@ -67,7 +90,7 @@ export const server = http.createServer(async (request, response) => {
     const result = await inspectDomain(body.domain);
     return send(response, 200, result);
   } catch (error) {
-    const status = error.statusCode || (String(error.message).includes('non-public') ? 400 : 400);
+    const status = error.statusCode || 400;
     const message = status === 413 || status === 400 ? error.message : 'Request failed.';
     return send(response, status, { error: 'DOMAIN_CHECK_FAILED', message });
   }
