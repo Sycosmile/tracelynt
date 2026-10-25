@@ -30,14 +30,19 @@ function send(response, status, body) {
   response.end(JSON.stringify(body));
 }
 
-function allowedByRateLimit(address) {
+function allowedByRateLimit(address, limit = REQUESTS_PER_WINDOW) {
   const now = Date.now();
+  if (rateWindows.size > 5000) {
+    for (const [key, value] of rateWindows) {
+      if (now - value.startedAt >= WINDOW_MS) rateWindows.delete(key);
+    }
+  }
   const current = rateWindows.get(address);
   if (!current || now - current.startedAt >= WINDOW_MS) {
     rateWindows.set(address, { startedAt: now, count: 1 });
     return true;
   }
-  if (current.count >= REQUESTS_PER_WINDOW) return false;
+  if (current.count >= limit) return false;
   current.count += 1;
   return true;
 }
@@ -79,6 +84,7 @@ export const server = http.createServer(async (request, response) => {
     return send(response, 200, { status: 'ok', service: 'tracelynt-domain-api' });
   }
   if (request.method === 'GET' && pathname === '/auth/login') {
+    if (!allowedByRateLimit((request.socket.remoteAddress || 'unknown') + ':auth', 10)) return send(response, 429, { error: 'RATE_LIMITED' });
     try {
       const login = await beginLogin();
       response.writeHead(302, { location: login.url, 'set-cookie': login.setCookie, 'cache-control': 'no-store', 'referrer-policy': 'no-referrer' });
@@ -88,6 +94,7 @@ export const server = http.createServer(async (request, response) => {
     }
   }
   if (request.method === 'GET' && pathname === '/auth/callback') {
+    if (!allowedByRateLimit((request.socket.remoteAddress || 'unknown') + ':auth', 10)) return send(response, 429, { error: 'RATE_LIMITED' });
     try {
       const incomingUrl = new URL(request.url || '/auth/callback', appOrigin());
       if (incomingUrl.pathname !== '/auth/callback') return send(response, 400, { error: 'LOGIN_FAILED' });
@@ -122,6 +129,7 @@ export const server = http.createServer(async (request, response) => {
     }
   }
   if (pathname === '/api/cases' || pathname.startsWith('/api/cases/')) {
+    if (!allowedByRateLimit((request.socket.remoteAddress || 'unknown') + ':workspace', 120)) return send(response, 429, { error: 'RATE_LIMITED' });
     try {
       const user = await currentUser(request);
       if (!user) return send(response, 401, { error: 'UNAUTHENTICATED' });
