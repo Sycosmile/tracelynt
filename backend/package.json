@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Tracelynt domain-intelligence API foundation",
+  "description": "Tracelynt domain intelligence and evidence report API",
   "engines": {
     "node": ">=22"
   },
@@ -11,6 +11,6 @@
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
     "test": "node --test",
-    "check": "node --check src/domain-check.js && node --check src/server.js && node --check ../frontend/app.js"
+    "check": "node --check src/domain-check.js && node --check src/report.js && node --check src/server.js && node --check ../frontend/app.js"
   }
 }
