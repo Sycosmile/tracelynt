@@ -149,6 +149,22 @@ export async function routeCaseRequest({ method, pathname, body, userId }) {
       });
     }
 
+    if (method === 'DELETE' && caseItem) {
+      if (!body || body.confirm !== true) return invalid('Explicit confirmation is required to request case deletion.');
+      return await transact(async (client) => {
+        const result = await client.query(
+          "UPDATE cases SET status = 'deletion_pending', updated_at = now() WHERE id = $1 AND owner_user_id = $2 AND status <> 'deletion_pending' RETURNING id",
+          [caseId, userId]
+        );
+        if (result.rowCount !== 1) {
+          await audit(client, userId, 'delete_request', 'case', caseId, 'denied');
+          return notFound();
+        }
+        await audit(client, userId, 'delete_request', 'case', caseId);
+        return { status: 202, body: { id: caseId, status: 'deletion_pending', message: 'The case is hidden from normal access. Physical deletion and backup expiry require the configured retention process.' } };
+      });
+    }
+
     if (method === 'PATCH' && caseItem) {
       const input = validateCase(body, true);
       const fields = {
