@@ -20,7 +20,11 @@ function cleanText(value, label, maxLength, required = true) {
   return result;
 }
 
-function netIsIp(hostname) {\n  return /^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}$/.test(hostname) || hostname.includes(':');\n}\n\nfunction normalizeSourceUrl(value) {
+function netIsIp(hostname) {
+  return /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/.test(hostname) || hostname.includes(':');
+}
+
+function normalizeSourceUrl(value) {
   const raw = cleanText(value, 'Source URL', 2048);
   let url;
   try {
