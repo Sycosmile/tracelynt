@@ -686,3 +686,20 @@ document.querySelector('#case-report-download').addEventListener('click', () => 
   anchor.remove();
   URL.revokeObjectURL(url);
 });
+
+document.querySelector('#workspace-delete-account').addEventListener('click', async () => {
+  if (!window.confirm('Request deletion of this account and all its cases? This immediately revokes sessions and hides cases, but physical deletion requires the operator purge process and backup expiry is separate.')) return;
+  try {
+    await workspaceRequest('/api/account', {
+      method: 'DELETE',
+      body: JSON.stringify({ confirm: true })
+    });
+    workspaceCsrfToken = null;
+    selectedCase = null;
+    setWorkspaceSignedIn(false);
+    caseDetail.hidden = true;
+    setWorkspaceMessage('Account deletion requested. Your sessions are revoked; records remain pending until the operator purge process runs.', true);
+  } catch (error) {
+    setWorkspaceMessage(error.message);
+  }
+});
