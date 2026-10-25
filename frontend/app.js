@@ -353,6 +353,7 @@ const caseReportOutput = document.querySelector('#case-report-output');
 let workspaceCsrfToken = null;
 let selectedCase = null;
 let workspaceCases = [];
+let selectedReportData = null;
 
 function setWorkspaceMessage(message, success = false) {
   workspaceMessage.hidden = false;
@@ -446,6 +447,8 @@ async function openCase(caseId) {
   selectedCase = payload.case;
   caseDetail.hidden = false;
   caseReportOutput.hidden = true;
+  selectedReportData = null;
+  document.querySelector('#case-report-download').hidden = true;
   document.querySelector('#selected-case-title').textContent = selectedCase.title;
   document.querySelector('#selected-case-meta').textContent =
     selectedCase.subjectType.replaceAll('_', ' ') + ' · ' + selectedCase.subjectLabel + ' · ' + selectedCase.status;
@@ -454,6 +457,7 @@ async function openCase(caseId) {
   document.querySelector('#generate-case-report').disabled = selectedCase.status !== 'open';
   const payloadEvidence = await workspaceRequest('/api/cases/' + encodeURIComponent(caseId) + '/evidence');
   renderCaseEvidence(payloadEvidence.evidence || []);
+  await loadCaseReports(caseId);
 }
 
 function renderCaseEvidence(items) {
@@ -517,6 +521,40 @@ function renderCaseEvidence(items) {
     li.append(controls);
     caseEvidenceList.append(li);
   });
+}
+
+async function loadCaseReports(caseId) {
+  const list = document.querySelector('#case-report-list');
+  try {
+    const payload = await workspaceRequest('/api/cases/' + encodeURIComponent(caseId) + '/reports');
+    list.replaceChildren();
+    const reports = Array.isArray(payload.reports) ? payload.reports : [];
+    if (!reports.length) {
+      list.append(textElement('li', 'empty-record', 'No reports generated yet.'));
+      return;
+    }
+    reports.forEach(report => {
+      const item = document.createElement('li');
+      item.className = 'case-list-item';
+      const view = document.createElement('button');
+      view.type = 'button';
+      view.className = 'case-select';
+      view.append(
+        textElement('strong', '', 'Report version ' + report.versionNumber),
+        textElement('span', 'draft-meta', 'Generated ' + new Date(report.generatedAt).toLocaleString())
+      );
+      view.addEventListener('click', () => {
+        selectedReportData = report.reportData;
+        caseReportOutput.textContent = JSON.stringify(report.reportData, null, 2);
+        caseReportOutput.hidden = false;
+        document.querySelector('#case-report-download').hidden = false;
+      });
+      item.append(view);
+      list.append(item);
+    });
+  } catch (error) {
+    list.replaceChildren(textElement('li', 'empty-record', error.message));
+  }
 }
 
 workspaceLoginButtons.forEach(buttonElement => buttonElement.addEventListener('click', () => {
@@ -623,8 +661,11 @@ document.querySelector('#generate-case-report').addEventListener('click', async 
       method: 'POST',
       body: '{}'
     });
-    caseReportOutput.textContent = JSON.stringify(payload.report, null, 2);
+    selectedReportData = payload.report.reportData;
+    caseReportOutput.textContent = JSON.stringify(selectedReportData, null, 2);
     caseReportOutput.hidden = false;
+    document.querySelector('#case-report-download').hidden = false;
+    await loadCaseReports(selectedCase.id);
     setWorkspaceMessage('Versioned report ' + payload.report.versionNumber + ' saved. Claims are not independently verified.', true);
   } catch (error) {
     setWorkspaceMessage(error.message);
@@ -632,3 +673,16 @@ document.querySelector('#generate-case-report').addEventListener('click', async 
 });
 
 refreshWorkspace();
+
+document.querySelector('#case-report-download').addEventListener('click', () => {
+  if (!selectedReportData) return;
+  const file = new Blob([JSON.stringify(selectedReportData, null, 2)], { type: 'application/json;charset=utf-8' });
+  const url = URL.createObjectURL(file);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = 'tracelynt-case-report.json';
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+});
