@@ -2,7 +2,7 @@
 
 ## Status
 
-**Design proposal only.** Authentication, database persistence, private cases, audit logging, and deletion workflows are not yet implemented. Do not store real personal or investigation data in the current prototype.
+**Implementation in progress.** PostgreSQL migrations, configurable OIDC/session handling, owner-scoped case/evidence/report APIs, and transactional audit events have been added. The identity provider is not configured, the frontend is not yet wired to the private APIs, and physical deletion/retention enforcement remain incomplete. Do not store real personal or investigation data in this prototype.
 
 ## Decision summary
 
@@ -17,7 +17,7 @@
 | Evidence/report storage | Persist normalized evidence and versioned reports; do not store full external pages by default | Preserves provenance while limiting unnecessary personal data. |
 | Deployment | One application service plus managed PostgreSQL, TLS, managed secrets, restricted database networking, and backups | Keeps the initial operational model reviewable. |
 
-These are recommendations, not evidence that an identity provider or hosting service has been selected. Do not begin implementation until the identity provider and database/deployment environment are documented.
+These are design constraints. A generic OIDC integration exists, but no identity provider or hosting service has been selected or configured. Do not use production investigation records until the release blockers are addressed.
 
 ## Scope
 
