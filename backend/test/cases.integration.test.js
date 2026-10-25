@@ -3,6 +3,10 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { getPool } from '../src/db.js';
 import { routeCaseRequest } from '../src/cases.js';
+import { requestAccountDeletion } from '../src/auth.js';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
 
 test('private case API enforces owner isolation and versions evidence reports', { skip: !process.env.DATABASE_URL }, async () => {
   const pool = getPool();
@@ -92,10 +96,28 @@ test('private case API enforces owner isolation and versions evidence reports', 
       method: 'GET', pathname: '/api/cases/' + caseId, userId: userA
     });
     assert.equal(hiddenAfterDeleteRequest.status, 404);
+
+    await requestAccountDeletion(userB);
+    const purgePath = fileURLToPath(new URL('../db/purge-pending-cases.js', import.meta.url));
+    const purge = spawnSync(process.execPath, [purgePath], {
+      env: { ...process.env, CONFIRM_PURGE_PENDING_CASES: 'YES' },
+      encoding: 'utf8'
+    });
+    assert.equal(purge.status, 0, purge.stderr);
+    const purgedCase = await pool.query('SELECT id FROM cases WHERE id = $1', [caseId]);
+    assert.equal(purgedCase.rowCount, 0);
+    const purgedAccount = await pool.query('SELECT id FROM users WHERE id = $1', [userB]);
+    assert.equal(purgedAccount.rowCount, 0);
+    const retainedAudit = await pool.query(
+      "SELECT count(*)::int AS count FROM audit_events WHERE resource_type = 'case' AND resource_id = $1 AND action = 'purge'",
+      [caseId]
+    );
+    assert.equal(retainedAudit.rows[0].count, 1);
   } finally {
     const ids = [userA, userB];
+    const resourceIds = caseId ? [caseId, userB] : [userB];
     await pool.query('DELETE FROM cases WHERE owner_user_id = ANY($1::uuid[])', [ids]);
-    await pool.query('DELETE FROM audit_events WHERE actor_user_id = ANY($1::uuid[])', [ids]);
+    await pool.query('DELETE FROM audit_events WHERE actor_user_id = ANY($1::uuid[]) OR resource_id = ANY($2::uuid[])', [ids, resourceIds]);
     await pool.query('DELETE FROM users WHERE id = ANY($1::uuid[])', [ids]);
   }
 });
