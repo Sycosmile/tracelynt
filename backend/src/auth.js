@@ -228,6 +228,33 @@ export async function currentUser(request) {
   return { id: result.rows[0].id, csrfToken: csrfFor(token) };
 }
 
+export async function requestAccountDeletion(userId) {
+  const client = await getPool().connect();
+  try {
+    await client.query('BEGIN');
+    const result = await client.query(
+      "UPDATE users SET status = 'deletion_pending', updated_at = now() WHERE id = $1 AND status = 'active' RETURNING id",
+      [userId]
+    );
+    if (result.rowCount !== 1) throw Object.assign(new Error('Account is not active.'), { statusCode: 404 });
+    await client.query(
+      "UPDATE cases SET status = 'deletion_pending', updated_at = now() WHERE owner_user_id = $1 AND status <> 'deletion_pending'",
+      [userId]
+    );
+    await client.query('UPDATE sessions SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL', [userId]);
+    await client.query(
+      "INSERT INTO audit_events (id, actor_user_id, action, resource_type, resource_id, outcome) VALUES ($1, $2, 'delete_request', 'account', $2, 'success')",
+      [randomUUID(), userId]
+    );
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 export async function logout(request) {
   const token = cookieValue(request, SESSION_COOKIE);
   if (token) {
