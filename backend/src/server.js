@@ -2,6 +2,8 @@ import http from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { inspectDomain } from './domain-check.js';
 import { createEvidenceReport } from './report.js';
+import { appOrigin, assertCsrf, beginLogin, completeLogin, currentUser, getCsrfToken, loginBinding, logout } from './auth.js';
+import { routeCaseRequest } from './cases.js';
 
 const HOST = process.env.HOST || '127.0.0.1';
 const PORT = Number.parseInt(process.env.PORT || '8000', 10);
@@ -55,6 +57,8 @@ async function readJson(request, limit = BODY_LIMIT) {
   }
 }
 
+function logoutCookieHeaders() { return []; }
+
 export const server = http.createServer(async (request, response) => {
   const pathname = new URL(request.url || '/', 'http://localhost').pathname;
   if (request.method === 'GET' && STATIC_FILES.has(pathname)) {
@@ -75,6 +79,73 @@ export const server = http.createServer(async (request, response) => {
   }
   if (request.method === 'GET' && pathname === '/health') {
     return send(response, 200, { status: 'ok', service: 'tracelynt-domain-api' });
+  }
+  if (request.method === 'GET' && pathname === '/auth/login') {
+    try {
+      const login = await beginLogin();
+      response.writeHead(302, { location: login.url, 'set-cookie': login.setCookie, 'cache-control': 'no-store', 'referrer-policy': 'no-referrer' });
+      return response.end();
+    } catch {
+      return send(response, 503, { error: 'AUTH_NOT_CONFIGURED', message: 'Sign-in is not configured. Set the OIDC and database environment variables.' });
+    }
+  }
+  if (request.method === 'GET' && pathname === '/auth/callback') {
+    try {
+      const callbackUrl = new URL(request.url || '/auth/callback', appOrigin()).href;
+      const result = await completeLogin(callbackUrl, loginBinding(request));
+      response.writeHead(302, { location: '/', 'set-cookie': result.setCookies, 'cache-control': 'no-store', 'referrer-policy': 'no-referrer' });
+      return response.end();
+    } catch (error) {
+      const status = error.statusCode || 401;
+      return send(response, status, { error: 'LOGIN_FAILED', message: status < 500 ? error.message : 'Sign-in could not be completed.' });
+    }
+  }
+  if (request.method === 'GET' && pathname === '/api/session') {
+    try {
+      const user = await currentUser(request);
+      return send(response, 200, user
+        ? { authenticated: true, csrfToken: getCsrfToken(request) }
+        : { authenticated: false });
+    } catch {
+      return send(response, 503, { error: 'WORKSPACE_UNAVAILABLE' });
+    }
+  }
+  if (request.method === 'POST' && pathname === '/auth/logout') {
+    try {
+      assertCsrf(request);
+      const user = await currentUser(request);
+      if (!user) {
+        response.writeHead(401, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'set-cookie': logoutCookieHeaders() });
+        return response.end(JSON.stringify({ error: 'UNAUTHENTICATED' }));
+      }
+      const cookies = await logout(request);
+      response.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'set-cookie': cookies, 'x-content-type-options': 'nosniff' });
+      return response.end(JSON.stringify({ ok: true }));
+    } catch (error) {
+      return send(response, error.statusCode || 503, { error: error.code || 'LOGOUT_FAILED' });
+    }
+  }
+  if (pathname === '/api/cases' || pathname.startsWith('/api/cases/')) {
+    try {
+      const user = await currentUser(request);
+      if (!user) return send(response, 401, { error: 'UNAUTHENTICATED' });
+      if (!['GET', 'POST', 'PATCH'].includes(request.method || '')) return send(response, 405, { error: 'METHOD_NOT_ALLOWED' });
+      const isMutation = request.method === 'POST' || request.method === 'PATCH';
+      if (isMutation) assertCsrf(request);
+      let body;
+      if (isMutation) {
+        if (!String(request.headers['content-type'] || '').toLowerCase().includes('application/json')) {
+          return send(response, 415, { error: 'JSON_REQUIRED' });
+        }
+        body = await readJson(request, REPORT_BODY_LIMIT);
+      }
+      const result = await routeCaseRequest({ method: request.method, pathname, body, userId: user.id });
+      if (!result) return send(response, 404, { error: 'NOT_FOUND' });
+      return send(response, result.status, result.body);
+    } catch (error) {
+      const status = error.statusCode || (error.code === 'CSRF_DENIED' ? 403 : 503);
+      return send(response, status, { error: error.code || (status === 403 ? 'CSRF_DENIED' : 'WORKSPACE_UNAVAILABLE'), ...(status === 400 ? { message: error.message } : {}) });
+    }
   }
   const isDomainCheck = request.method === 'POST' && pathname === '/api/domain-check';
   const isReport = request.method === 'POST' && pathname === '/api/report';
