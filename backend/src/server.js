@@ -6,6 +6,7 @@ import { createEvidenceReport } from './report.js';
 const HOST = process.env.HOST || '127.0.0.1';
 const PORT = Number.parseInt(process.env.PORT || '8000', 10);
 const BODY_LIMIT = 2048;
+const REPORT_BODY_LIMIT = 96_000;
 const WINDOW_MS = 60_000;
 const REQUESTS_PER_WINDOW = 20;
 const rateWindows = new Map();
@@ -84,7 +85,7 @@ export const server = http.createServer(async (request, response) => {
     return send(response, 415, { error: 'JSON_REQUIRED' });
   }
   try {
-    const body = await readJson(request, isReport ? 12_288 : BODY_LIMIT);
+    const body = await readJson(request, isReport ? REPORT_BODY_LIMIT : BODY_LIMIT);
     if (isReport) {
       try {
         return send(response, 200, createEvidenceReport(body));
