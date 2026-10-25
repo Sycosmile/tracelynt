@@ -55,7 +55,8 @@ function validateEvidence(body) {
     let parsed;
     try { parsed = new URL(sourceUrl); } catch { throw new TypeError('Source URL must be a valid HTTPS URL.'); }
     if (parsed.protocol !== 'https:' || parsed.username || parsed.password) throw new TypeError('Source URL must be HTTPS and cannot include credentials.');
-    if ((net.isIP(parsed.hostname) && !isPublicIp(parsed.hostname)) || parsed.hostname === 'localhost' || parsed.hostname.endsWith('.localhost') || parsed.hostname.endsWith('.local') || parsed.hostname.endsWith('.internal')) {
+    const hostname = parsed.hostname.replace(/^\[|\]$/g, '').toLowerCase();
+    if ((net.isIP(hostname) && !isPublicIp(hostname)) || hostname === 'localhost' || hostname.endsWith('.localhost') || hostname.endsWith('.local') || hostname.endsWith('.internal')) {
       throw new TypeError('Local and internal source URLs are not allowed.');
     }
   }
