@@ -1,15 +1,18 @@
 # Frontend
 
-The first interface is a dependency-free, responsive HTML/CSS/JavaScript prototype served by the backend from the same origin.
+The interface is a dependency-free, responsive HTML/CSS/JavaScript application served by the backend from the same origin.
 
-## Run
+## Run the public prototype
 
-Use Node.js 22 or newer. From the repository root:
+Requirements: Node.js 22 or newer. You do not need Docker or PostgreSQL to explore the domain-inspection interface and non-persistent report builder.
+
+From the repository root:
 
     cd backend
+    npm install
     npm start
 
-Open http://127.0.0.1:8000 in a browser. The interface sends domain checks to the local API. The backend serves only an explicit allowlist of frontend assets; do not open index.html directly from the filesystem.
+Open http://127.0.0.1:8000. The interface sends domain checks to the local API. The backend serves only an explicit allowlist of frontend assets; do not open `index.html` directly from the filesystem.
 
 ## Current screen
 
@@ -19,19 +22,21 @@ Open http://127.0.0.1:8000 in a browser. The interface sends domain checks to th
 - Retrieval timestamp and explicit limitations.
 - Business/domain evidence report builder with source attribution, analyst notes, and review states.
 - JSON export and browser print-to-PDF workflow for generated reports.
+- Sign-in state and private case workspace interface.
+- Case/evidence management, saved report versions, audited export, and deletion-request controls when the database and authentication provider are configured.
 - Responsive layout and accessible status announcements.
 
 ## Security requirements
 
-- Values from the API are inserted with textContent, not interpreted as HTML.
+- Values from the API are inserted with `textContent`, not interpreted as HTML.
 - No third-party scripts, analytics, or client-side secrets.
 - The browser does not fetch the submitted domain directly; the backend performs bounded DNS/TLS checks.
 - Static asset routes are explicitly allowlisted.
 - Do not treat the results as proof of legitimacy or operator identity.
-- Authentication, private case workspaces, report export, and production hardening are not implemented yet.
+- The application is a development prototype, not production-ready.
 
-This is a prototype, not a production-ready application.
+## Database-backed features
 
-## Evidence reports
+Domain inspection and the non-persistent report builder can run without PostgreSQL. The private workspace requires a reachable PostgreSQL database, applied migrations, and a configured OIDC provider for real sign-in. Without those settings, authentication and case features are unavailable; this is expected for a partial local setup.
 
-The report builder collects analyst-supplied claims and HTTPS source links, then asks the API to normalize them into a timestamped report. It does not fetch the linked pages, verify a business against a registry, or save the report. The exported JSON and print output state those limitations. Reports may contain sensitive case material, so store exports securely and include only information needed for the stated purpose.
+The report builder collects analyst-supplied claims and HTTPS source links, then asks the API to normalize them into a timestamped report. It does not fetch the linked pages, verify a business against a registry, or save that report. The exported JSON and print output state those limitations. Reports may contain sensitive case material, so store exports securely and include only information needed for the stated purpose.
