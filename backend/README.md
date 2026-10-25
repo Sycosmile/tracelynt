@@ -40,7 +40,7 @@ The endpoint returns DNS A/AAAA, MX and TXT observations, plus TLS certificate m
 - IPv6 DNS records are reported, but TLS checks currently use validated public IPv4 only.
 - DNS and TLS results do not prove that a domain is legitimate or identify its operator.
 
-Before production, add a reviewed authentication strategy if needed, robust distributed rate limiting, structured redacted logging, deployment-level egress controls, monitoring, and broader integration tests. Never commit real provider credentials or investigation records.
+Before production, add a reviewed authentication strategy if needed, robust distributed rate limiting, structured redacted logging, deployment-level egress controls, monitoring, and broader integration tests. The private-workspace PostgreSQL schema and migration runner are an initial development foundation only; see `db/README.md`. Run `npm run migrate` only after setting `DATABASE_URL` to a disposable development database and ensuring the PostgreSQL `psql` client is installed. Never commit real provider credentials or investigation records.
 
 ## Evidence reports
 
