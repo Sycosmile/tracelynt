@@ -2,76 +2,67 @@
 
 ## Status and goals
 
-This is a proposed architecture, not a description of an implemented system. Validate it with a small vertical slice before committing to a larger stack.
+This document describes the current development prototype and distinguishes implemented controls from production requirements. The application is not production-ready and must use synthetic data only.
 
 Goals: source traceability, replaceable providers, strict tenant isolation, untrusted-source handling, and transparent failures and uncertainty.
 
-## Logical components
+## Implemented components
 
-Browser UI → authenticated API → authentication and authorization → input validation and quotas → case/evidence services → provider orchestration → approved provider adapters → persistence and audit events.
+Browser UI → same-origin Node.js HTTP API → input validation and bounded DNS/TLS inspection.
 
-A bounded job queue may support asynchronous checks. Provider secrets must remain server-side. The browser must never call privileged provider APIs directly.
+For private workspace routes, the API uses configurable OpenID Connect authentication, server-side session state, owner-scoped case/evidence/report services, PostgreSQL persistence, and audit events. The browser never calls privileged provider APIs directly.
 
-## Suggested technology direction
+The runtime is Node.js 22+ with a dependency-free HTML/CSS/JavaScript frontend and PostgreSQL for the private workspace. The OIDC protocol is implemented with a maintained client library, but no provider is selected or configured. PostgreSQL migrations are versioned SQL files. GitHub Actions runs backend checks and PostgreSQL integration tests.
 
-- Frontend: TypeScript and a maintained web framework.
-- API: TypeScript or Python, chosen based on the first vertical slice and team familiarity.
-- Database: PostgreSQL or another relational database with migrations.
-- Validation: runtime schemas at trust boundaries.
-- Tests: unit, integration, authorization, and end-to-end coverage.
-- Deployment: managed platform with TLS, secret management, logs, backups, and recovery procedures.
+## Current request lifecycle
 
-These are recommendations, not final stack decisions.
+1. Serve only explicitly allowlisted frontend assets or known API routes.
+2. For private workspace operations, resolve the session and enforce same-origin CSRF checks for mutations.
+3. Validate and normalize the input.
+4. For domain inspection, resolve DNS and reject non-public or special-use destinations.
+5. Collect bounded DNS observations and TLS certificate metadata without fetching arbitrary webpage content.
+6. Return minimized observations with timestamps and limitations.
+7. For case operations, enforce owner-scoped access and record minimized audit events for sensitive operations.
+8. For reports, preserve source attribution and review states; case report versions are stored as immutable snapshots.
 
-## Request lifecycle
+A provider or network failure must not become a negative finding. Partial results must identify incomplete checks. Analyst-supplied claims are not independently verified by report generation.
 
-1. Authenticate the requester.
-2. Authorize the action and case scope.
-3. Validate and normalize input.
-4. Enforce quotas and provider policy.
-5. Call the adapter with strict timeout and response-size limits.
-6. Normalize results and discard unnecessary personal data.
-7. Store provenance and a suitable audit event.
-8. Return minimized results with source, timestamp, status, and caveats.
+## Domain inspection and network safeguards
 
-A provider failure must not become a negative finding. Partial results must identify incomplete checks.
+- Accept a normalized domain rather than an arbitrary URL.
+- Reject localhost, local/reserved suffixes, IP literals, and DNS results that are private, reserved, or special-use.
+- Validate all returned A/AAAA addresses before connecting.
+- Connect TLS inspection to a validated public IPv4 destination while using the requested hostname for SNI.
+- Do not follow redirects or fetch arbitrary web pages.
+- Bound request bodies and use connection timeouts.
+- Treat DNS/TLS results as point-in-time observations, not proof of business legitimacy or domain ownership.
 
-## Provider adapter contract
+These checks reduce SSRF exposure but still require adversarial testing and independent review before public deployment. Network-level egress restrictions should be added as defense in depth in a deployed environment.
 
-Each adapter documents provider identity, permitted purpose, input schema, output fields, legal/contractual basis, timeout, retry policy, quotas, error categories, freshness, retention, and tests using synthetic fixtures.
+## Private workspace and persistence
 
-Do not build a generic privileged fetcher for arbitrary URLs. Limit network capabilities to approved providers or validated destination classes.
+- PostgreSQL stores users, sessions, OIDC login transactions, cases, evidence items, report versions, and audit events.
+- Session tokens are opaque and high-entropy; only their hashes are stored in the database.
+- Session expiry/revocation and CSRF protections are implemented in the application.
+- Every private case/evidence/report operation must be scoped to the authenticated owner; unknown and non-owned identifiers should not reveal object existence.
+- Evidence includes source references, review state, limitations, and correction/retraction metadata.
+- Case report versions are immutable snapshots; later evidence edits do not silently rewrite earlier reports.
+- Deletion requests mark records pending and revoke sessions as applicable. A guarded operator command can purge pending primary-database rows, but there is no scheduled purge or approved retention period.
+- Deleting primary-database rows does not erase backups. Backup expiry, restoration drills, and derived-data deletion are not implemented.
 
-## SSRF and network controls
+## Local development and testing
 
-For user-supplied domains or URLs:
-- Allow only supported schemes.
-- Reject localhost, private, link-local, multicast, reserved, and cloud metadata IP ranges.
-- Resolve DNS and validate every resulting address before connecting.
-- Revalidate redirects; disable them by default where practical.
-- Mitigate DNS rebinding by pinning the validated destination.
-- Block internal network access at egress firewall level as defense in depth.
-- Bound response size, redirect count, connect time, total time, and content type.
-- Never render fetched active content in the application origin.
+The public domain-inspection prototype and non-persistent report builder can run with Node.js and npm without a local database. Private workspace features require PostgreSQL, migrations, and a configured OIDC provider. Tests requiring PostgreSQL need a test database; CI provisions PostgreSQL for integration tests.
 
-## Core data entities
+Use synthetic data only. Keep PostgreSQL bound to localhost during local development and never commit credentials.
 
-- User: identity-provider subject, status, minimal account metadata.
-- Case: owner, purpose, access policy, creation time, retention deadline, status.
-- EvidenceItem: case reference, claim, type, verification state, timestamps, caveats.
-- Source: canonical URL/provider reference, source name, retrieval time, freshness metadata.
-- ProviderRun: adapter, status, timing, bounded error category, correlation ID.
-- AuditEvent: actor, action, target reference, timestamp, outcome, correlation ID.
-- Report: case reference, generation time, version, export metadata.
+## Production requirements not yet met
 
-Avoid personal data in URLs, log keys, metrics labels, or primary keys.
-
-## Security and operations
-
-- Enforce authorization on every private object at the service/data layer.
-- Use tenant-scoped queries and test for insecure direct object references.
-- Encrypt traffic in transit and use managed encryption at rest where available.
-- Store secrets in a secret manager or untracked environment file.
-- Define separate retention rules for records, backups, logs, and exports.
-- Audit access, sharing changes, corrections, and exports.
-- Before production, configure environment separation, dependency/secret scanning, tested backups, incident response, provider outage procedures, and measurable service targets.
+- Select and review a real OIDC provider and configure end-to-end sign-in.
+- Choose hosting and a managed database with appropriate regional, contractual, and privacy review.
+- Use separate least-privilege runtime and migration database roles.
+- Add distributed rate limiting, operational monitoring, and alerting.
+- Enforce approved retention periods and test deletion across records, exports, derived data, and backups.
+- Exercise backup restoration and migration rollback procedures.
+- Add dependency/secret scanning and lockfile-based reproducible installs.
+- Complete privacy impact, incident response, and independent security reviews before handling real personal or investigation data.
