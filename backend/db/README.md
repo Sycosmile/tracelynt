@@ -1,12 +1,12 @@
-# Database foundation (development only)
+# PostgreSQL setup (development only)
 
-This folder introduces the initial PostgreSQL schema for the planned private case workspace. It does **not** implement authentication, session middleware, case API routes, or authorization. Do not store real investigation or personal data in this prototype.
+The PostgreSQL schema and migration runner support the private workspace API. Do not store real investigation or personal data in this prototype.
 
 ## Requirements
 
-- Docker Engine with Compose, or a local PostgreSQL 17 installation.
-- psql client.
-- Node.js 22+ for the existing API.
+- Docker Engine with Compose, or PostgreSQL 17.
+- PostgreSQL psql client.
+- Node.js 22+ and backend npm dependencies.
 
 ## Start local PostgreSQL
 
@@ -14,31 +14,31 @@ From the repository root:
 
     docker compose up -d postgres
 
-The Compose service binds port 5432 to 127.0.0.1 only. Its fallback password is development-only; override it using a local, untracked .env file before use. Never reuse it outside a disposable local environment.
+The Compose service binds port 5432 to 127.0.0.1 only. Its fallback password is development-only. Change it before keeping any data and never reuse it outside a disposable local environment.
 
-Connection URL for the default local-only configuration:
+Default local connection URL:
 
     postgresql://tracelynt_app:local-dev-only-change-me@127.0.0.1:5432/tracelynt
 
-Apply the first migration from the repository root:
+From backend, set DATABASE_URL to that URL and run:
 
-    psql "postgresql://tracelynt_app:local-dev-only-change-me@127.0.0.1:5432/tracelynt" -v ON_ERROR_STOP=1 -f backend/db/migrations/001_initial_schema.sql
+    npm install
+    npm run migrate
 
-On PowerShell, run the command as a single line. If you changed the local password, update the connection URL accordingly. Do not commit local .env files or secrets.
-
-Verify the schema:
-
-    psql "postgresql://tracelynt_app:local-dev-only-change-me@127.0.0.1:5432/tracelynt" -c "\dt"
-
-Run the migration runner from the backend directory with DATABASE_URL set to the local connection string: `npm run migrate`. The runner creates a schema_migrations ledger, serializes concurrent runs with a PostgreSQL advisory transaction lock, applies each migration and ledger row in one transaction, skips already-applied migrations, and rejects checksum changes to applied migrations. It requires the PostgreSQL `psql` client. The current automated tests check the schema and runner guards; they do not replace a live PostgreSQL integration test.
+The runner discovers versioned SQL migrations, creates a checksum ledger, serializes concurrent runs with an advisory transaction lock, applies each migration and its ledger entry in one transaction, skips already-applied migrations, and rejects checksum changes to applied migrations. It requires psql.
 
 ## Schema overview
 
 - users: unique OIDC issuer/subject pair and account status.
-- sessions: SHA-256-sized opaque-token hash, expiry, revocation, and user relationship.
-- cases: owner, purpose, subject descriptor, lifecycle status, and optional retention deadline.
+- sessions: hash of an opaque session token, expiry and revocation.
+- oidc_login_transactions: short-lived hashed state/browser binding plus nonce and PKCE verifier.
+- cases: owner, purpose, subject descriptor, lifecycle status and optional retention deadline.
 - evidence_items: provenance, review state, limitations, correction/retraction metadata.
-- report_versions: versioned JSON report snapshots, scoped to cases.
-- audit_events: minimized event metadata for access and lifecycle actions.
+- report_versions: immutable versioned JSON report snapshots.
+- audit_events: minimized metadata for access and lifecycle actions.
 
-Application code must authorize every case/evidence/report operation against the authenticated owner. UUIDs are identifiers, not authorization. The database schema is not a substitute for authorization tests. Before production, add and test a migration ledger/runner, least-privilege database roles, backup restoration, retention/deletion behavior, and access-control integration tests.
+## Important boundaries
+
+Application queries enforce case ownership; UUIDs are identifiers, not authorization. The API currently implements owner-scoped case/evidence/report operations and OIDC/session code, but no real provider credentials or deployment are configured. The deletion endpoint marks a case deletion_pending; it does not yet purge records or expire backups. Account deletion, retention enforcement, backup restoration, least-privilege role provisioning, and operational monitoring remain release blockers.
+
+GitHub Actions runs migration checks against PostgreSQL, including repeat application, schema verification, rollback of a deliberately broken migration, checksum mismatch detection, and database-backed authorization tests. Confirm the latest Actions result before relying on those checks.
