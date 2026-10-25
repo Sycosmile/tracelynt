@@ -340,3 +340,295 @@ printReportButton.addEventListener('click', () => {
 });
 
 renderDraftFindings();
+
+/* Private workspace UI. Session and CSRF values stay in memory; no auth data is stored in browser storage. */
+const workspaceMessage = document.querySelector('#workspace-message');
+const workspaceAnonymous = document.querySelector('#workspace-anonymous');
+const workspaceAuthenticated = document.querySelector('#workspace-authenticated');
+const workspaceLoginButtons = [document.querySelector('#workspace-login'), document.querySelector('#workspace-sign-in')];
+const caseListElement = document.querySelector('#case-list');
+const caseDetail = document.querySelector('#case-detail');
+const caseEvidenceList = document.querySelector('#case-evidence-list');
+const caseReportOutput = document.querySelector('#case-report-output');
+let workspaceCsrfToken = null;
+let selectedCase = null;
+let workspaceCases = [];
+
+function setWorkspaceMessage(message, success = false) {
+  workspaceMessage.hidden = false;
+  workspaceMessage.className = success ? 'feedback success' : 'feedback';
+  workspaceMessage.textContent = message;
+}
+
+function setWorkspaceSignedIn(signedIn) {
+  workspaceAnonymous.hidden = signedIn;
+  workspaceAuthenticated.hidden = !signedIn;
+  document.querySelector('#workspace-login').hidden = signedIn;
+}
+
+async function workspaceRequest(path, options = {}) {
+  const headers = { ...(options.headers || {}) };
+  if (options.body !== undefined) headers['content-type'] = 'application/json';
+  if (options.method && !['GET', 'HEAD'].includes(options.method)) {
+    if (!workspaceCsrfToken) throw new Error('Your session has expired. Sign in again.');
+    headers['x-csrf-token'] = workspaceCsrfToken;
+  }
+  const response = await fetch(path, {
+    ...options,
+    headers,
+    credentials: 'same-origin',
+    cache: 'no-store'
+  });
+  let payload = {};
+  try { payload = await response.json(); } catch {}
+  if (!response.ok) {
+    if (response.status === 401) throw new Error('Your session is no longer active. Sign in again.');
+    if (response.status === 503) throw new Error('Private workspace is unavailable. Check database and OIDC configuration.');
+    throw new Error(payload.message || payload.error || 'Request could not be completed.');
+  }
+  return payload;
+}
+
+async function refreshWorkspace() {
+  try {
+    const session = await workspaceRequest('/api/session');
+    if (!session.authenticated) {
+      workspaceCsrfToken = null;
+      setWorkspaceSignedIn(false);
+      setWorkspaceMessage('Private workspace is locked until you sign in. The operator must configure PostgreSQL and an OIDC provider.');
+      return;
+    }
+    workspaceCsrfToken = session.csrfToken;
+    setWorkspaceSignedIn(true);
+    setWorkspaceMessage('Signed in. Case records are private to this account.', true);
+    await loadCases();
+  } catch (error) {
+    workspaceCsrfToken = null;
+    setWorkspaceSignedIn(false);
+    setWorkspaceMessage(error.message || 'Private workspace is not available.');
+  }
+}
+
+async function loadCases() {
+  const payload = await workspaceRequest('/api/cases');
+  workspaceCases = Array.isArray(payload.cases) ? payload.cases : [];
+  caseListElement.replaceChildren();
+  if (!workspaceCases.length) {
+    caseListElement.append(textElement('li', 'empty-record', 'No cases yet. Create one to start documenting evidence.'));
+    selectedCase = null;
+    caseDetail.hidden = true;
+    return;
+  }
+  workspaceCases.forEach(item => {
+    const li = document.createElement('li');
+    li.className = 'case-list-item';
+    const select = document.createElement('button');
+    select.type = 'button';
+    select.className = 'case-select';
+    select.append(
+      textElement('strong', '', item.title),
+      textElement('span', 'draft-meta', item.subjectType.replaceAll('_', ' ') + ' · ' + item.subjectLabel),
+      textElement('span', 'case-state', item.status)
+    );
+    select.addEventListener('click', () => openCase(item.id));
+    li.append(select);
+    caseListElement.append(li);
+  });
+  if (selectedCase && workspaceCases.some(item => item.id === selectedCase.id)) {
+    await openCase(selectedCase.id);
+  } else {
+    await openCase(workspaceCases[0].id);
+  }
+}
+
+async function openCase(caseId) {
+  const payload = await workspaceRequest('/api/cases/' + encodeURIComponent(caseId));
+  selectedCase = payload.case;
+  caseDetail.hidden = false;
+  caseReportOutput.hidden = true;
+  document.querySelector('#selected-case-title').textContent = selectedCase.title;
+  document.querySelector('#selected-case-meta').textContent =
+    selectedCase.subjectType.replaceAll('_', ' ') + ' · ' + selectedCase.subjectLabel + ' · ' + selectedCase.status;
+  document.querySelector('#archive-case').textContent = selectedCase.status === 'archived' ? 'Reopen case' : 'Archive';
+  document.querySelector('#evidence-form').hidden = selectedCase.status !== 'open';
+  document.querySelector('#generate-case-report').disabled = selectedCase.status !== 'open';
+  const payloadEvidence = await workspaceRequest('/api/cases/' + encodeURIComponent(caseId) + '/evidence');
+  renderCaseEvidence(payloadEvidence.evidence || []);
+}
+
+function renderCaseEvidence(items) {
+  caseEvidenceList.replaceChildren();
+  document.querySelector('#case-evidence-count').textContent = items.length + ' items';
+  if (!items.length) {
+    caseEvidenceList.append(textElement('li', 'empty-record', 'No evidence recorded yet.'));
+    return;
+  }
+  items.forEach(item => {
+    const li = document.createElement('li');
+    li.className = 'case-evidence-item';
+    li.append(
+      textElement('strong', '', item.claim),
+      textElement('span', 'draft-meta', item.category.replaceAll('_', ' ') + ' · ' + item.reviewState.replaceAll('_', ' ') + ' · ' + item.sourceName)
+    );
+    if (item.sourceUrl) {
+      const link = document.createElement('a');
+      link.href = item.sourceUrl;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      link.textContent = item.sourceUrl;
+      li.append(link);
+    }
+    if (item.limitations) li.append(textElement('p', 'draft-meta', 'Limitations: ' + item.limitations));
+    if (item.correctionNote) li.append(textElement('p', 'draft-meta', 'Correction: ' + item.correctionNote));
+    const controls = document.createElement('div');
+    controls.className = 'evidence-controls';
+    const state = document.createElement('select');
+    state.setAttribute('aria-label', 'Review state for evidence');
+    for (const value of ['unreviewed', 'corroborated', 'disputed', 'unavailable', 'retracted']) {
+      const option = document.createElement('option');
+      option.value = value;
+      option.textContent = value.replaceAll('_', ' ');
+      option.selected = value === item.reviewState;
+      state.append(option);
+    }
+    const correction = document.createElement('input');
+    correction.maxLength = 2000;
+    correction.placeholder = 'Correction note (optional)';
+    correction.value = item.correctionNote || '';
+    correction.setAttribute('aria-label', 'Correction note');
+    const save = document.createElement('button');
+    save.type = 'button';
+    save.className = 'secondary-button';
+    save.textContent = 'Update review';
+    save.disabled = selectedCase?.status !== 'open';
+    save.addEventListener('click', async () => {
+      try {
+        await workspaceRequest('/api/cases/' + encodeURIComponent(selectedCase.id) + '/evidence/' + encodeURIComponent(item.id), {
+          method: 'PATCH',
+          body: JSON.stringify({ reviewState: state.value, correctionNote: correction.value })
+        });
+        setWorkspaceMessage('Evidence review updated. Existing report versions remain unchanged.', true);
+        await openCase(selectedCase.id);
+      } catch (error) {
+        setWorkspaceMessage(error.message);
+      }
+    });
+    controls.append(state, correction, save);
+    li.append(controls);
+    caseEvidenceList.append(li);
+  });
+}
+
+workspaceLoginButtons.forEach(buttonElement => buttonElement.addEventListener('click', () => {
+  window.location.assign('/auth/login');
+}));
+
+document.querySelector('#workspace-sign-out').addEventListener('click', async () => {
+  try {
+    await workspaceRequest('/auth/logout', { method: 'POST', body: '{}' });
+    workspaceCsrfToken = null;
+    selectedCase = null;
+    setWorkspaceSignedIn(false);
+    setWorkspaceMessage('You have signed out.', true);
+  } catch (error) {
+    setWorkspaceMessage(error.message);
+  }
+});
+
+document.querySelector('#case-form').addEventListener('submit', async event => {
+  event.preventDefault();
+  try {
+    const payload = await workspaceRequest('/api/cases', {
+      method: 'POST',
+      body: JSON.stringify({
+        title: document.querySelector('#case-title').value,
+        purpose: document.querySelector('#case-purpose').value,
+        subjectType: document.querySelector('#case-subject-type').value,
+        subjectLabel: document.querySelector('#case-subject-label').value
+      })
+    });
+    document.querySelector('#case-title').value = '';
+    document.querySelector('#case-purpose').value = '';
+    document.querySelector('#case-subject-label').value = '';
+    selectedCase = payload.case;
+    setWorkspaceMessage('Private case created.', true);
+    await loadCases();
+    await openCase(payload.case.id);
+  } catch (error) {
+    setWorkspaceMessage(error.message);
+  }
+});
+
+document.querySelector('#evidence-form').addEventListener('submit', async event => {
+  event.preventDefault();
+  if (!selectedCase) return;
+  try {
+    await workspaceRequest('/api/cases/' + encodeURIComponent(selectedCase.id) + '/evidence', {
+      method: 'POST',
+      body: JSON.stringify({
+        claim: document.querySelector('#case-evidence-claim').value,
+        category: document.querySelector('#case-evidence-category').value,
+        sourceName: document.querySelector('#case-evidence-source').value,
+        sourceUrl: document.querySelector('#case-evidence-url').value,
+        limitations: document.querySelector('#case-evidence-limitations').value
+      })
+    });
+    document.querySelector('#case-evidence-claim').value = '';
+    document.querySelector('#case-evidence-source').value = '';
+    document.querySelector('#case-evidence-url').value = '';
+    document.querySelector('#case-evidence-limitations').value = '';
+    setWorkspaceMessage('Evidence saved with its source and limitations.', true);
+    await openCase(selectedCase.id);
+  } catch (error) {
+    setWorkspaceMessage(error.message);
+  }
+});
+
+document.querySelector('#archive-case').addEventListener('click', async () => {
+  if (!selectedCase) return;
+  const nextStatus = selectedCase.status === 'archived' ? 'open' : 'archived';
+  try {
+    await workspaceRequest('/api/cases/' + encodeURIComponent(selectedCase.id), {
+      method: 'PATCH',
+      body: JSON.stringify({ status: nextStatus })
+    });
+    setWorkspaceMessage(nextStatus === 'archived' ? 'Case archived.' : 'Case reopened.', true);
+    await loadCases();
+  } catch (error) {
+    setWorkspaceMessage(error.message);
+  }
+});
+
+document.querySelector('#delete-case').addEventListener('click', async () => {
+  if (!selectedCase) return;
+  if (!window.confirm('Request deletion of this case? It will be hidden from normal access, but physical deletion and backup expiry are not automated yet.')) return;
+  try {
+    await workspaceRequest('/api/cases/' + encodeURIComponent(selectedCase.id), {
+      method: 'DELETE',
+      body: JSON.stringify({ confirm: true })
+    });
+    selectedCase = null;
+    caseDetail.hidden = true;
+    setWorkspaceMessage('Deletion requested. This marks the case pending; it does not physically purge data or backups.', true);
+    await loadCases();
+  } catch (error) {
+    setWorkspaceMessage(error.message);
+  }
+});
+
+document.querySelector('#generate-case-report').addEventListener('click', async () => {
+  if (!selectedCase) return;
+  try {
+    const payload = await workspaceRequest('/api/cases/' + encodeURIComponent(selectedCase.id) + '/reports', {
+      method: 'POST',
+      body: '{}'
+    });
+    caseReportOutput.textContent = JSON.stringify(payload.report, null, 2);
+    caseReportOutput.hidden = false;
+    setWorkspaceMessage('Versioned report ' + payload.report.versionNumber + ' saved. Claims are not independently verified.', true);
+  } catch (error) {
+    setWorkspaceMessage(error.message);
+  }
+});
+
+refreshWorkspace();
