@@ -12,7 +12,7 @@
 <body>
   <header class="topbar">
     <a class="brand" href="/" aria-label="Tracelynt home"><span class="brand-mark">T</span><span>tracelynt</span></a>
-    <span class="status"><span class="status-dot"></span> Early access · Local prototype</span>
+    <div class="header-actions"><span class="status"><span class="status-dot"></span> Development prototype</span><button id="workspace-login" class="secondary-button header-login" type="button">Sign in</button></div>
   </header>
   <main>
     <section class="hero">
@@ -125,6 +125,52 @@
         </div>
       </section>
       <p id="report-feedback" class="feedback" role="status" aria-live="polite" hidden></p>
+    </section>
+    <section id="private-workspace" class="workspace" aria-labelledby="workspace-title">
+      <p class="eyebrow">PRIVATE CASES / 03</p>
+      <h2 id="workspace-title">Keep the evidence together.</h2>
+      <p class="report-intro">Sign in to create private cases, record sourced findings, and generate versioned evidence summaries. Each case is visible only to its owner. Use synthetic information until retention and deletion controls are complete.</p>
+      <p id="workspace-message" class="feedback" role="status" aria-live="polite">Checking sign-in configuration…</p>
+      <div id="workspace-anonymous" class="workspace-gate" hidden>
+        <p>Private case storage requires an identity provider and PostgreSQL configured by the operator.</p>
+        <button id="workspace-sign-in" type="button">Sign in securely</button>
+      </div>
+      <div id="workspace-authenticated" hidden>
+        <div class="workspace-toolbar">
+          <span id="workspace-account">Authenticated session</span>
+          <button id="workspace-sign-out" class="secondary-button" type="button">Sign out</button>
+        </div>
+        <form id="case-form" class="finding-form">
+          <h3>Create a case</h3>
+          <div class="form-grid">
+            <div class="field"><label for="case-title">Case title</label><input id="case-title" maxlength="200" required placeholder="Website verification"></div>
+            <div class="field"><label for="case-subject-type">Subject type</label><select id="case-subject-type"><option value="domain">Domain</option><option value="business">Business</option><option value="phone_number">Phone number</option><option value="other">Other</option></select></div>
+          </div>
+          <div class="field"><label for="case-subject-label">Subject label</label><input id="case-subject-label" maxlength="500" required placeholder="example.com"></div>
+          <div class="field"><label for="case-purpose">Purpose and scope</label><textarea id="case-purpose" maxlength="2000" rows="2" required placeholder="Describe the legitimate verification question and scope."></textarea></div>
+          <div class="report-actions"><button type="submit">Create private case</button></div>
+        </form>
+        <div class="workspace-columns">
+          <section class="case-list-panel"><h3>Your cases</h3><ul id="case-list" class="case-list"><li class="empty-record">No cases loaded.</li></ul></section>
+          <section id="case-detail" class="case-detail" hidden>
+            <div class="case-detail-heading"><div><p class="eyebrow">SELECTED CASE</p><h3 id="selected-case-title"></h3><p id="selected-case-meta" class="draft-meta"></p></div><div class="report-actions"><button id="archive-case" class="secondary-button" type="button">Archive</button><button id="delete-case" class="secondary-button" type="button">Request deletion</button></div></div>
+            <form id="evidence-form" class="finding-form">
+              <h4>Add evidence</h4>
+              <div class="field"><label for="case-evidence-claim">Claim or observation</label><textarea id="case-evidence-claim" maxlength="5000" rows="3" required></textarea></div>
+              <div class="form-grid">
+                <div class="field"><label for="case-evidence-category">Category</label><select id="case-evidence-category"><option value="direct_observation">Direct observation</option><option value="public_record">Public record</option><option value="provider_data">Provider data</option><option value="user_report">User report</option><option value="analyst_assessment">Analyst assessment</option></select></div>
+                <div class="field"><label for="case-evidence-source">Source name</label><input id="case-evidence-source" maxlength="300" required></div>
+              </div>
+              <div class="field"><label for="case-evidence-url">Source URL (optional HTTPS)</label><input id="case-evidence-url" type="url" maxlength="2048" placeholder="https://example.com/source"></div>
+              <div class="field"><label for="case-evidence-limitations">Limitations</label><textarea id="case-evidence-limitations" maxlength="5000" rows="2" placeholder="What does this evidence not establish?"></textarea></div>
+              <div class="report-actions"><button type="submit">Save evidence</button></div>
+            </form>
+            <div class="draft-panel"><div class="draft-heading"><h4>Evidence records</h4><span id="case-evidence-count">0 items</span></div><ul id="case-evidence-list" class="case-list"></ul></div>
+            <div class="report-actions"><button id="generate-case-report" type="button">Generate versioned report</button></div>
+            <pre id="case-report-output" class="case-report-output" hidden></pre>
+          </section>
+        </div>
+      </div>
     </section>
     <section class="principles">
       <div><span class="principle-index">A</span><h3>Evidence first</h3><p>Results show technical observations, not verdicts about legitimacy.</p></div>
