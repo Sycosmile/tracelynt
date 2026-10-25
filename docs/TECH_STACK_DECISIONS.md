@@ -16,13 +16,13 @@ Use PostgreSQL. Develop locally first, using a local PostgreSQL instance (Docker
 
 Use a dedicated least-privilege application role at runtime. Migration credentials must be separate from runtime credentials. Parameterize queries and enforce case ownership in every query/service operation.
 
-### Authentication — protocol decided; provider not yet approved
+### Authentication — OIDC protocol implemented; provider still not approved
 
 Use OpenID Connect through a maintained client library and a server-managed, opaque session stored in PostgreSQL. Do not implement password storage, token signing, or cryptographic primitives from scratch. Store only a hash of the opaque session token. Set cookies Secure, HttpOnly, and SameSite in deployed environments; add CSRF protection for state-changing cookie-authenticated requests.
 
-Keep provider-specific discovery, callback, issuer/audience validation, state, nonce, and logout handling behind a small authentication module. Use a deterministic fake identity/session adapter in automated tests; never require real provider credentials in CI.
+The backend now has a configurable discovery-based OIDC authorization-code flow using the maintained openid-client library, state, nonce, PKCE, a browser-binding cookie, hashed opaque sessions, expiry/revocation, and CSRF checks. PostgreSQL-backed case/evidence/report services and owner-scoped audit writes are implemented. Automated tests use synthetic identities; real provider credentials are not required in CI.
 
-**Open gate:** choose a real OIDC provider only after reviewing account recovery, allowed sign-in methods, callback configuration, cost, data processing terms, and account deletion. Google OIDC may be evaluated as a simple initial login option, but it is not approved or configured by this document.
+**Open gate:** choose a real OIDC provider only after reviewing account recovery, allowed sign-in methods, callback configuration, cost, data processing terms, and account deletion. No provider is configured or approved by this document.
 
 ### Hosting — not approved for sensitive records
 
@@ -42,14 +42,12 @@ Do not put private investigation records on free/sleeping prototype instances. A
 
 ## Implementation order
 
-1. Add local PostgreSQL development configuration and migration tooling.
-2. Create migrations for users, sessions, cases, evidence, report versions, and audit events.
-3. Implement and test database access with synthetic fixtures.
-4. Implement OIDC/session interfaces and negative authorization tests; use a fake identity adapter for CI.
-5. Add case service operations with owner-scoped queries and transactionally recorded audit events.
-6. Implement retention, correction, archive, deletion, and export access rules.
-7. Select and configure the real OIDC provider and hosted environment only after their review gates are complete.
-8. Run integration tests against a clean PostgreSQL database before adding case UI.
+1. Completed: local PostgreSQL configuration, migration runner, checksum ledger, and schema migrations.
+2. Completed in the backend: configurable OIDC flow, hashed sessions, expiry/revocation, and CSRF checks; provider credentials remain unconfigured.
+3. Implemented: owner-scoped case/evidence APIs, immutable report snapshots, and transactionally recorded audit events.
+4. In progress: run the PostgreSQL integration workflow and resolve any failures.
+5. Next: connect the frontend to sign-in/session/case APIs, then implement physical deletion, retention enforcement, and account deletion.
+6. Before production: select and review the identity provider and host, add least-privilege runtime DB roles, backup/restore tests, distributed rate limiting, and operational monitoring.
 
 ## Release blockers
 
