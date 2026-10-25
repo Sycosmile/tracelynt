@@ -6,7 +6,7 @@ import { getPool } from '../src/db.js';
 process.env.APP_BASE_URL = 'http://127.0.0.1:8000';
 process.env.AUTH_SECRET = 'test-only-auth-secret-that-is-long-enough';
 
-const { assertCsrf, getCsrfToken, currentUser } = await import('../src/auth.js');
+const { assertCsrf, getCsrfToken, currentUser, logout } = await import('../src/auth.js');
 
 test('anonymous requests do not acquire a session or CSRF token', async () => {
   const request = { headers: {} };
@@ -70,8 +70,16 @@ test('server sessions reject expired, revoked, and suspended-account sessions', 
     assert.equal(await currentUser(requestFor(expiredToken)), null);
     assert.equal(await currentUser(requestFor(revokedToken)), null);
     assert.equal(await currentUser(requestFor(suspendedToken)), null);
+    await logout(requestFor(validToken));
+    assert.equal(await currentUser(requestFor(validToken)), null);
+    const logoutAudit = await pool.query(
+      "SELECT count(*)::int AS count FROM audit_events WHERE actor_user_id = $1 AND action = 'logout' AND resource_type = 'session'",
+      [activeUser]
+    );
+    assert.equal(logoutAudit.rows[0].count, 1);
   } finally {
     const users = [activeUser, suspendedUser];
+    await pool.query('DELETE FROM audit_events WHERE actor_user_id = ANY($1::uuid[])', [users]);
     await pool.query('DELETE FROM sessions WHERE user_id = ANY($1::uuid[])', [users]);
     await pool.query('DELETE FROM users WHERE id = ANY($1::uuid[])', [users]);
   }
