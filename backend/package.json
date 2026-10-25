@@ -11,6 +11,7 @@
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
     "test": "node --test",
-    "check": "node --check src/domain-check.js && node --check src/report.js && node --check src/server.js && node --check ../frontend/app.js"
+    "check": "node --check src/domain-check.js && node --check src/report.js && node --check src/server.js && node --check ../frontend/app.js && node --check db/migrate.js",
+    "migrate": "node db/migrate.js"
   }
 }
