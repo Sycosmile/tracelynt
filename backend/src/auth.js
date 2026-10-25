@@ -265,10 +265,26 @@ export async function requestAccountDeletion(userId) {
 export async function logout(request) {
   const token = cookieValue(request, SESSION_COOKIE);
   if (token) {
-    await query(
-      'UPDATE sessions SET revoked_at = now() WHERE token_hash = $1 AND revoked_at IS NULL',
-      [hash(token)]
-    );
+    const client = await getPool().connect();
+    try {
+      await client.query('BEGIN');
+      const result = await client.query(
+        'UPDATE sessions SET revoked_at = now() WHERE token_hash = $1 AND revoked_at IS NULL RETURNING user_id',
+        [hash(token)]
+      );
+      if (result.rowCount === 1) {
+        await client.query(
+          "INSERT INTO audit_events (id, actor_user_id, action, resource_type, outcome) VALUES ($1, $2, 'logout', 'session', 'success')",
+          [randomUUID(), result.rows[0].user_id]
+        );
+      }
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw error;
+    } finally {
+      client.release();
+    }
   }
   return clearAuthCookies();
 }
