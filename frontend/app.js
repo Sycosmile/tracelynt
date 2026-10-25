@@ -93,7 +93,7 @@ function domainObservationFindings(report) {
   const describeRecords = (label, result, format) => {
     const records = Array.isArray(result?.records) ? result.records : [];
     const rendered = records.map(format);
-    const detail = rendered.length ? rendered.join('; ') : 'no record values returned';
+    const detail = (rendered.length ? rendered.join('; ') : 'no record values returned').slice(0, 600);
     findings.push({
       claim: label + ' lookup returned status "' + (result?.status || 'unknown') + '" at ' + timestamp + ' (' + detail + ').',
       sourceName: 'Tracelynt domain inspection',
@@ -108,9 +108,9 @@ function domainObservationFindings(report) {
   describeRecords('DNS MX (mail routing)', dns.mx, value => String(value.priority) + ' · ' + String(value.exchange));
   describeRecords('DNS TXT', dns.txt, value => String(value));
   const tls = report.checks?.tls || {};
-  const tlsDetail = tls.status === 'ok'
+  const tlsDetail = (tls.status === 'ok'
     ? 'certificate authorized=' + String(Boolean(tls.authorized)) + '; protocol=' + (tls.protocol || 'not reported') + '; subject=' + (tls.subject || 'not reported') + '; issuer=' + (tls.issuer || 'not reported') + '; valid from=' + (tls.validFrom || 'not reported') + '; valid to=' + (tls.validTo || 'not reported')
-    : 'TLS status=' + (tls.status || 'unknown') + '; detail=' + (tls.reason || tls.error || 'not reported');
+    : 'TLS status=' + (tls.status || 'unknown') + '; detail=' + (tls.reason || tls.error || 'not reported')).slice(0, 600);
   findings.push({
     claim: 'TLS certificate inspection for ' + report.domain + ' at ' + timestamp + ': ' + tlsDetail + '.',
     sourceName: 'Tracelynt domain inspection',
