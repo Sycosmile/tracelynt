@@ -30,7 +30,7 @@ Verify the schema:
 
     psql "postgresql://tracelynt_app:local-dev-only-change-me@127.0.0.1:5432/tracelynt" -c "\dt"
 
-The migration is transactional and intended to be applied once to a fresh database. A versioned migration runner and automated PostgreSQL integration tests are still required before application code relies on this schema.
+Run the migration runner from the backend directory with DATABASE_URL set to the local connection string: `npm run migrate`. The runner creates a schema_migrations ledger, serializes concurrent runs with a PostgreSQL advisory transaction lock, applies each migration and ledger row in one transaction, skips already-applied migrations, and rejects checksum changes to applied migrations. It requires the PostgreSQL `psql` client. The current automated tests check the schema and runner guards; they do not replace a live PostgreSQL integration test.
 
 ## Schema overview
 
