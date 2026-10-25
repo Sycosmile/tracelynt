@@ -4,18 +4,19 @@
 
 Tracelynt is an evidence-led intelligence and verification workspace for researching public information, documenting findings, and assessing claims with transparent sources and limitations.
 
-> **Status: early development.** The repository contains the product foundation and an initial domain-intelligence API slice. It is not a production-ready lookup service, and no external provider integrations are configured.
+> **Status: early prototype.** The repository contains the product foundation, a domain-intelligence API, and a small browser interface. It is not a production-ready lookup service, and no external provider integrations are configured.
 
 ## Current implementation
 
-The backend uses Node.js built-in modules and provides:
-- Domain normalization and validation.
+- Domain normalization and input validation.
 - DNS A/AAAA, MX, and TXT observations.
 - TLS certificate metadata from a validated public IPv4 address.
-- A local health endpoint and domain-check endpoint.
-- Unit tests for normalization, public-IP guards, and evidence response shape.
+- Same-origin browser interface served by the backend.
+- Explicit frontend asset allowlist, request-size limits, no-store responses, and a basic in-memory rate limit.
+- Tests for domain validation, IP-range guards, API responses, and static asset serving.
+- GitHub Actions workflow for JavaScript syntax checks and automated tests.
 
-See [Backend](backend/README.md) for setup and endpoint details. Run tests with npm from the backend directory.
+See [Backend](backend/README.md) and [Frontend](frontend/README.md) for setup and limitations. Run the test suite with npm from the backend directory.
 
 ## Product direction
 
@@ -39,8 +40,8 @@ These are product goals, not claims that integrations or data sources already ex
 
 ## Repository layout
 
-- backend/: initial domain-intelligence API and tests
-- frontend/: frontend responsibilities and future implementation notes
+- backend/: domain-intelligence API and tests
+- frontend/: responsive domain-inspection interface
 - docs/PRODUCT_REQUIREMENTS.md: scope and acceptance criteria
 - docs/ARCHITECTURE.md: design and network safeguards
 - docs/SECURITY.md: threat model and security baseline
@@ -51,14 +52,14 @@ These are product goals, not claims that integrations or data sources already ex
 
 ## Development
 
-Requirements: Node.js 22 or newer. The backend slice uses Node.js built-ins and has no third-party runtime dependencies.
+Requirements: Node.js 22 or newer. The API uses Node.js built-ins and has no third-party runtime dependencies.
 
     cd backend
     npm test
     npm run check
     npm start
 
-By default, the API binds to 127.0.0.1:8000. Keep it local during development.
+Open http://127.0.0.1:8000 after starting the server. Keep the service bound to localhost during development.
 
 ## Responsible-use boundary
 
