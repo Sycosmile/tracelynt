@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="description" content="Evidence-led domain intelligence with transparent technical observations and limitations.">
+  <title>Tracelynt — Follow the evidence</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="Tracelynt home"><span class="brand-mark">T</span><span>tracelynt</span></a>
+    <span class="status"><span class="status-dot"></span> Early access · Local prototype</span>
+  </header>
+  <main>
+    <section class="hero">
+      <p class="eyebrow">DOMAIN INTELLIGENCE / 01</p>
+      <h1>Follow the <span>evidence.</span></h1>
+      <p class="intro">Inspect public DNS records and TLS certificate metadata. Every result comes with context and limitations—not assumptions about who owns a domain.</p>
+      <form id="lookup-form" class="search-form">
+        <label for="domain">Domain name</label>
+        <div class="search-row">
+          <input id="domain" name="domain" type="text" placeholder="example.com" autocomplete="url" maxlength="1024" required aria-describedby="input-help">
+          <button id="submit-button" type="submit"><span id="button-label">Inspect domain</span><span aria-hidden="true"> ↗</span></button>
+        </div>
+        <p id="input-help" class="hint">Enter a domain only. Do not include https://, a path, or a port.</p>
+      </form>
+      <div class="trust-line"><span>01 / DNS observations</span><span>02 / TLS metadata</span><span>03 / Clear limitations</span></div>
+    </section>
+    <section id="feedback" class="feedback" role="status" aria-live="polite" hidden></section>
+    <section id="results" class="results" aria-label="Inspection results" hidden>
+      <div class="results-heading">
+        <div><p class="eyebrow">OBSERVATION REPORT</p><h2 id="result-domain"></h2></div>
+        <span id="retrieved-at" class="timestamp"></span>
+      </div>
+      <div id="record-grid" class="record-grid"></div>
+      <section class="tls-panel">
+        <div><p class="eyebrow">TRANSPORT SECURITY</p><h3>TLS certificate</h3></div>
+        <div id="tls-details" class="tls-details"></div>
+      </section>
+      <section class="limitations">
+        <h3>Read this before drawing conclusions</h3>
+        <ul id="limitations-list"></ul>
+      </section>
+      <p class="report-footnote">Technical observations only · No identity attribution · Results may change over time</p>
+    </section>
+    <section class="principles">
+      <div><span class="principle-index">A</span><h3>Evidence first</h3><p>Results show technical observations, not verdicts about legitimacy.</p></div>
+      <div><span class="principle-index">B</span><h3>Visible limits</h3><p>Missing data and incomplete checks are reported rather than guessed.</p></div>
+      <div><span class="principle-index">C</span><h3>Privacy by design</h3><p>This prototype does not crawl pages or collect private identity records.</p></div>
+    </section>
+  </main>
+  <footer><a class="brand footer-brand" href="/">tracelynt</a><span>Follow the evidence.</span><span>Domain checks are not proof of identity.</span></footer>
+</body>
+</html>
