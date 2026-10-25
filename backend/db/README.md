@@ -27,6 +27,18 @@ From backend, set DATABASE_URL to that URL and run:
 
 The runner discovers versioned SQL migrations, creates a checksum ledger, serializes concurrent runs with an advisory transaction lock, applies each migration and its ledger entry in one transaction, skips already-applied migrations, and rejects checksum changes to applied migrations. It requires psql.
 
+## Purge requested deletions
+
+Only run this after reviewing and approving the applicable retention policy. The command permanently deletes all cases marked deletion_pending from the primary database, removes pending accounts after their cases are gone, and cleans expired/revoked sessions and expired login transactions. It does not erase backups.
+
+From backend, after installing dependencies and setting DATABASE_URL:
+
+    $env:CONFIRM_PURGE_PENDING_CASES = "YES"
+    npm run purge:pending
+    Remove-Item Env:CONFIRM_PURGE_PENDING_CASES
+
+By default, the command processes every pending case/account in the configured database. To scope a run to selected synthetic/test owners, set PURGE_OWNER_IDS to a comma-separated list of UUIDs. Do not run the unscoped command against a database until the retention policy and target environment have been verified.
+
 ## Schema overview
 
 - users: unique OIDC issuer/subject pair and account status.
