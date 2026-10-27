@@ -251,9 +251,9 @@ addFindingButton.addEventListener('click', () => {
     return;
   }
 
-  const hostname = sourceUrl.hostname.toLowerCase().replace(/^\\[|\\]$/g, '').replace(/\\.$/, '');
+  const hostname = sourceUrl.hostname.toLowerCase().replace(/^\[|\]$/g, '').replace(/\.$/, '');
   const isIpAddress =
-    /^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}$/.test(hostname) ||
+    /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/.test(hostname) ||
     hostname.includes(':');
 
   const reservedSuffixes = [
