@@ -242,6 +242,41 @@ addFindingButton.addEventListener('click', () => {
     reportMessage('Enter a claim, source name, and source URL before adding a finding.');
     return;
   }
+
+  let sourceUrl;
+  try {
+    sourceUrl = new URL(finding.sourceUrl);
+  } catch {
+    reportMessage('Enter a valid HTTPS source URL.');
+    return;
+  }
+
+  const hostname = sourceUrl.hostname.toLowerCase().replace(/^\\[|\\]$/g, '').replace(/\\.$/, '');
+  const isIpAddress =
+    /^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}$/.test(hostname) ||
+    hostname.includes(':');
+
+  const reservedSuffixes = [
+    'localhost', 'local', 'internal', 'test', 'invalid', 'example', 'onion'
+  ];
+
+  if (
+    sourceUrl.protocol !== 'https:' ||
+    sourceUrl.username ||
+    sourceUrl.password ||
+    !hostname.includes('.') ||
+    isIpAddress
+  ) {
+    reportMessage('Source URL must be an HTTPS link to a named public source.');
+    return;
+  }
+
+  if (reservedSuffixes.some(suffix => hostname === suffix || hostname.endsWith('.' + suffix))) {
+    reportMessage('Local, reserved, and internal source URLs are not allowed.');
+    return;
+  }
+
+  finding.sourceUrl = sourceUrl.toString();
   draftFindings.push(finding);
   generatedReport = null;
   reportOutput.hidden = true;
