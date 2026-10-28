@@ -187,7 +187,7 @@ export async function routeCaseRequest({ method, pathname, body, userId, domainI
           const id = randomUUID();
           const result = await client.query(
             'INSERT INTO evidence_items (id, case_id, creator_user_id, claim, category, review_state, source_name, source_url, observed_at, limitations, source_published_at, freshness_state, freshness_as_of, provenance_kind, provenance_actor_id, source_provider_id) VALUES ($1, $2, $3, $4, $5, $6, $7, NULL, $8, $9, NULL, $10, NULL, $11, NULL, $12) RETURNING id, claim, category, review_state AS "reviewState", source_name AS "sourceName", observed_at AS "observedAt", limitations, freshness_state AS "freshnessState", provenance_kind AS "provenanceKind", source_provider_id AS "sourceProviderId"',
-            [id, caseId, userId, observation.claim, observation.category, reviewState, observation.source.name, null, observation.limitations.join(' '), observation.freshness.state, observation.provenance.kind, observation.source.providerId]
+            [id, caseId, userId, observation.claim + ' Retrieved at ' + observation.retrievedAt + '.', observation.category, reviewState, observation.source.name, null, observation.limitations.join(' '), observation.freshness.state, observation.provenance.kind, observation.source.providerId]
           );
           imported.push(result.rows[0]);
           await audit(client, userId, 'import', 'evidence', id);
