@@ -491,6 +491,9 @@ async function openCase(caseId) {
     selectedCase.subjectType.replaceAll('_', ' ') + ' · ' + selectedCase.subjectLabel + ' · ' + selectedCase.status;
   document.querySelector('#archive-case').textContent = selectedCase.status === 'archived' ? 'Reopen case' : 'Archive';
   document.querySelector('#evidence-form').hidden = selectedCase.status !== 'open';
+  const importDomainButton = document.querySelector('#import-domain-observations');
+  importDomainButton.hidden = selectedCase.status !== 'open' || selectedCase.subjectType !== 'domain';
+  importDomainButton.disabled = false;
   document.querySelector('#generate-case-report').disabled = selectedCase.status !== 'open';
   const payloadEvidence = await workspaceRequest('/api/cases/' + encodeURIComponent(caseId) + '/evidence');
   renderCaseEvidence(payloadEvidence.evidence || []);
@@ -637,6 +640,27 @@ document.querySelector('#case-form').addEventListener('submit', async event => {
     await openCase(payload.case.id);
   } catch (error) {
     setWorkspaceMessage(error.message);
+  }
+});
+
+
+document.querySelector('#import-domain-observations').addEventListener('click', async () => {
+  if (!selectedCase || selectedCase.status !== 'open' || selectedCase.subjectType !== 'domain') return;
+  const button = document.querySelector('#import-domain-observations');
+  button.disabled = true;
+  button.textContent = 'Inspecting and saving…';
+  try {
+    const payload = await workspaceRequest('/api/cases/' + encodeURIComponent(selectedCase.id) + '/import-domain-observations', {
+      method: 'POST',
+      body: JSON.stringify({ domain: selectedCase.subjectLabel })
+    });
+    await openCase(selectedCase.id);
+    setWorkspaceMessage('Saved ' + payload.importedCount + ' domain observations to this case. Unavailable checks remain marked as unavailable; results do not establish identity or legitimacy.', true);
+  } catch (error) {
+    setWorkspaceMessage(error.message);
+  } finally {
+    button.disabled = false;
+    button.textContent = 'Inspect and save domain observations';
   }
 });
 

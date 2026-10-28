@@ -95,7 +95,8 @@ async function query(run) {
     return { status: records.length ? 'ok' : 'no_records', records };
   } catch (error) {
     const code = typeof error?.code === 'string' ? error.code : 'DNS_ERROR';
-    if (code === 'ENODATA' || code === 'ENOTFOUND') return { status: 'no_records', records: [] };
+    if (code === 'ENODATA') return { status: 'no_records', records: [] };
+    if (code === 'ENOTFOUND') return { status: 'error', records: [], error: 'DNS_NAME_NOT_FOUND' };
     return { status: 'error', records: [], error: code };
   }
 }
@@ -160,10 +161,10 @@ export async function inspectDomain(input, dependencies = {}) {
   const retrievedAt = new Date().toISOString();
   const checks = {
     dns: {
-      ipv4: { status: a.status, records: a.records },
-      ipv6: { status: aaaa.status, records: aaaa.records },
-      mx: { status: mx.status, records: mx.records.slice(0, 10).map(item => ({ exchange: item.exchange, priority: item.priority })) },
-      txt: { status: txt.status, records: txt.records.slice(0, 10).map(parts => parts.join('').slice(0, 512)) }
+      ipv4: { status: a.status, records: a.records, ...(a.error ? { error: a.error } : {}) },
+      ipv6: { status: aaaa.status, records: aaaa.records, ...(aaaa.error ? { error: aaaa.error } : {}) },
+      mx: { status: mx.status, records: mx.records.slice(0, 10).map(item => ({ exchange: item.exchange, priority: item.priority })), ...(mx.error ? { error: mx.error } : {}) },
+      txt: { status: txt.status, records: txt.records.slice(0, 10).map(parts => parts.join('').slice(0, 512)), ...(txt.error ? { error: txt.error } : {}) }
     },
     tls: tlsInfo
   };
