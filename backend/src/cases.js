@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { getPool } from './db.js';
 import net from 'node:net';
-import { isPublicIp } from './domain-check.js';
+import { inspectDomain, isPublicIp } from './domain-check.js';
 
 const SUBJECT_TYPES = new Set(['business', 'domain', 'phone_number', 'other']);
 const REVIEW_STATES = new Set(['unreviewed', 'corroborated', 'disputed', 'unavailable', 'retracted']);
@@ -111,7 +111,7 @@ async function transact(work) {
   }
 }
 
-export async function routeCaseRequest({ method, pathname, body, userId }) {
+export async function routeCaseRequest({ method, pathname, body, userId, domainInspector = inspectDomain }) {
   try {
     if (pathname === '/api/cases' && method === 'GET') {
       return await transact(async (client) => {
@@ -137,15 +137,66 @@ export async function routeCaseRequest({ method, pathname, body, userId }) {
       });
     }
 
+    const domainImport = pathname.match(/^\/api\/cases\/([0-9a-f-]+)\/import-domain-observations$/i);
     const evidenceList = pathname.match(/^\/api\/cases\/([0-9a-f-]+)\/evidence$/i);
     const reportList = pathname.match(/^\/api\/cases\/([0-9a-f-]+)\/reports$/i);
     const reportExport = pathname.match(/^\/api\/cases\/([0-9a-f-]+)\/reports\/([0-9a-f-]+)\/export$/i);
     const reportItem = pathname.match(/^\/api\/cases\/([0-9a-f-]+)\/reports\/([0-9a-f-]+)$/i);
     const evidenceItem = pathname.match(/^\/api\/cases\/([0-9a-f-]+)\/evidence\/([0-9a-f-]+)$/i);
     const caseItem = pathname.match(/^\/api\/cases\/([0-9a-f-]+)$/i);
-    if (!caseItem && !evidenceList && !reportList && !evidenceItem && !reportItem && !reportExport) return null;
-    const caseId = (caseItem || evidenceList || reportList || evidenceItem || reportItem || reportExport)[1];
+    if (!caseItem && !domainImport && !evidenceList && !reportList && !evidenceItem && !reportItem && !reportExport) return null;
+    const caseId = (caseItem || domainImport || evidenceList || reportList || evidenceItem || reportItem || reportExport)[1];
     if (!UUID.test(caseId)) return notFound();
+
+
+    if (domainImport && method === 'POST') {
+      const requestedDomain = text(body?.domain, 'Domain', 253).toLowerCase().replace(/\.$/, '');
+      const owned = await transact(async (client) => {
+        const result = await client.query(
+          "SELECT id, subject_type AS \"subjectType\", subject_label AS \"subjectLabel\" FROM cases WHERE id = $1 AND owner_user_id = $2 AND status = 'open'",
+          [caseId, userId]
+        );
+        if (result.rowCount !== 1) {
+          await audit(client, userId, 'import_domain_observations', 'case', caseId, 'denied');
+          return null;
+        }
+        return result.rows[0];
+      });
+      if (!owned) return notFound();
+      if (owned.subjectType !== 'domain' || owned.subjectLabel.toLowerCase().replace(/\.$/, '') !== requestedDomain) {
+        return invalid('The requested domain must match this open case subject.');
+      }
+      const inspection = await domainInspector(requestedDomain);
+      return await transact(async (client) => {
+        const current = await client.query(
+          "SELECT id FROM cases WHERE id = $1 AND owner_user_id = $2 AND status = 'open' FOR UPDATE",
+          [caseId, userId]
+        );
+        if (current.rowCount !== 1) {
+          await audit(client, userId, 'import_domain_observations', 'case', caseId, 'denied');
+          return notFound();
+        }
+        const imported = [];
+        for (const observation of inspection.observations) {
+          const statusMatch = observation.claim.match(/check result: (\{.*\})$/);
+          let resultStatus = observation.reviewState === 'unavailable' ? 'error' : 'unknown';
+          if (statusMatch) {
+            try { resultStatus = JSON.parse(statusMatch[1]).status || resultStatus; } catch {}
+          }
+          const reviewState = resultStatus === 'error' || resultStatus === 'skipped' ? 'unavailable' : 'unreviewed';
+          const id = randomUUID();
+          const result = await client.query(
+            'INSERT INTO evidence_items (id, case_id, creator_user_id, claim, category, review_state, source_name, source_url, observed_at, limitations, source_published_at, freshness_state, freshness_as_of, provenance_kind, provenance_actor_id, source_provider_id) VALUES ($1, $2, $3, $4, $5, $6, $7, NULL, $8, $9, NULL, $10, NULL, $11, NULL, $12) RETURNING id, claim, category, review_state AS "reviewState", source_name AS "sourceName", observed_at AS "observedAt", limitations, freshness_state AS "freshnessState", provenance_kind AS "provenanceKind", source_provider_id AS "sourceProviderId"',
+            [id, caseId, userId, observation.claim, observation.category, reviewState, observation.source.name, observation.retrievedAt, observation.limitations.join(' '), observation.freshness.state, observation.provenance.kind, observation.source.providerId]
+          );
+          imported.push(result.rows[0]);
+          await audit(client, userId, 'import', 'evidence', id);
+        }
+        await client.query('UPDATE cases SET updated_at = now() WHERE id = $1', [caseId]);
+        await audit(client, userId, 'import_domain_observations', 'case', caseId);
+        return { status: 201, body: { domain: inspection.domain, retrievedAt: inspection.retrievedAt, importedCount: imported.length, evidence: imported, limitations: inspection.limitations } };
+      });
+    }
 
     if (evidenceItem && !UUID.test(evidenceItem[2])) return notFound();
     if (reportItem && !UUID.test(reportItem[2])) return notFound();
