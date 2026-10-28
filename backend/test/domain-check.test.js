@@ -71,3 +71,18 @@ test('blocks a domain if any resolved address is non-public', async () => {
     /non-public or special-use/
   );
 });
+
+test('distinguishes a missing DNS name from a record type with no records', async () => {
+  const resolver = {
+    resolve4: async () => { const error = new Error('name not found'); error.code = 'ENOTFOUND'; throw error; },
+    resolve6: async () => { const error = new Error('no data'); error.code = 'ENODATA'; throw error; },
+    resolveMx: async () => { const error = new Error('no data'); error.code = 'ENODATA'; throw error; },
+    resolveTxt: async () => { const error = new Error('no data'); error.code = 'ENODATA'; throw error; }
+  };
+  const result = await inspectDomain('example.com', { resolver });
+  assert.equal(result.checks.dns.ipv4.status, 'error');
+  assert.equal(result.checks.dns.ipv4.error, 'DNS_NAME_NOT_FOUND');
+  assert.equal(result.checks.dns.ipv6.status, 'no_records');
+  assert.equal(result.observations[0].reviewState, 'unavailable');
+  assert.equal(result.observations[1].reviewState, 'unreviewed');
+});
