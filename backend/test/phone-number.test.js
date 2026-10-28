@@ -10,7 +10,7 @@ test('normalizes a Nigerian local number with maintained numbering metadata', ()
   assert.equal(typeof result.possible, 'boolean');
   assert.equal(typeof result.valid, 'boolean');
   assert.ok(result.checkedAt);
-  assert.match(result.metadataSource, /libphonenumber-js\\/max/);
+  assert.match(result.metadataSource, /libphonenumber-js\/max/);
 });
 
 test('parses international numbers and reports their country when identifiable', () => {
