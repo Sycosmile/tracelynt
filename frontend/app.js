@@ -794,27 +794,6 @@ const publicLookupTimestamp = document.querySelector('#public-lookup-timestamp')
 const publicLookupDisclaimer = document.querySelector('#public-lookup-disclaimer');
 const publicLookupResults = document.querySelector('#public-lookup-results');
 
-function parsePhoneFormat(raw) {
-  const value = raw.trim();
-  if (!value || !/^[+()0-9. -]+$/.test(value)) {
-    throw new Error('Enter a phone number using digits and common separators.');
-  }
-  let digits = value.replace(/[^0-9]/g, '');
-  if (value.startsWith('+')) {
-    if (digits.length < 8 || digits.length > 15 || digits.startsWith('0')) {
-      throw new Error('Use an international number with 8–15 digits after +.');
-    }
-    return { number: '+' + digits, region: digits.startsWith('234') ? 'Nigeria (+234; inferred)' : 'Calling region not mapped' };
-  }
-  if (digits.length === 11 && digits.startsWith('0')) {
-    digits = '234' + digits.slice(1);
-  } else if (digits.length === 10 && /^[789][01][0-9]{8}$/.test(digits)) {
-    digits = '234' + digits;
-  } else {
-    throw new Error('For Nigerian local numbers, use 11 digits starting with 0, or use international + format.');
-  }
-  return { number: '+' + digits, region: 'Nigeria (+234; inferred)' };
-}
 
 function appendPublicSearchLink(provider, href) {
   const item = document.createElement('article');
@@ -836,42 +815,28 @@ publicLookupType.addEventListener('change', () => {
   publicLookupOutput.hidden = true;
 });
 
-publicLookupForm.addEventListener('submit', event => {
+publicLookupForm.addEventListener('submit', async event => {
   event.preventDefault();
   const value = publicLookupValue.value.trim();
-  publicLookupResults.replaceChildren();
-  publicLookupOutput.hidden = false;
+  publicLookupResults.replaceChildren(); publicLookupOutput.hidden = false;
   publicLookupTimestamp.textContent = 'Prepared ' + new Date().toLocaleString();
-
   if (publicLookupType.value === 'phone') {
+    publicLookupSubmit.disabled = true; publicLookupSubmit.textContent = 'Checking…';
     try {
-      const parsed = parsePhoneFormat(value);
-      publicLookupOutputTitle.textContent = 'Phone format result';
-      publicLookupDisclaimer.textContent = 'Format checks do not confirm that a number is assigned, active, controlled by a particular person, or safe. No carrier or subscriber database was queried.';
-      for (const [label, detail] of [
-        ['Normalized number', parsed.number],
-        ['Calling region', parsed.region],
-        ['Check performed', 'Local syntax rules only; no external lookup']
-      ]) {
-        const item = document.createElement('article');
-        item.className = 'report-finding';
-        item.append(textElement('h4', '', label), textElement('p', 'report-note', detail));
-        publicLookupResults.append(item);
-      }
-    } catch (error) {
-      publicLookupOutputTitle.textContent = 'Number format needs attention';
-      publicLookupDisclaimer.textContent = error.message || 'Could not parse this number.';
-    }
-  } else if (value.length < 2) {
-    publicLookupOutputTitle.textContent = 'Enter a more specific query';
-    publicLookupDisclaimer.textContent = 'Enter at least two characters for the organization name.';
-  } else {
-    const query = encodeURIComponent('"' + value + '"');
-    publicLookupOutputTitle.textContent = 'Public organization searches';
-    publicLookupDisclaimer.textContent = 'Choose a search provider to open results. The provider receives the query when clicked. Results may be incomplete or misleading; check original sources and do not treat a name match alone as verification.';
-    appendPublicSearchLink('Google', 'https://www.google.com/search?q=' + query);
-    appendPublicSearchLink('Bing', 'https://www.bing.com/search?q=' + query);
-    appendPublicSearchLink('DuckDuckGo', 'https://duckduckgo.com/?q=' + query);
+      const response = await fetch('/api/phone-number', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ phoneNumber: value, defaultCountry: 'NG' }) });
+      const result = await response.json(); if (!response.ok) throw new Error(result.message || 'Could not parse this number.');
+      publicLookupOutputTitle.textContent = result.parsed ? 'Numbering-plan result' : 'Number could not be parsed';
+      publicLookupDisclaimer.textContent = 'This is numbering-plan metadata, not subscriber or identity verification. No carrier or subscriber database was queried.';
+      const rows = result.parsed ? [['E.164 number',result.e164],['International format',result.internationalFormat],['National format',result.nationalFormat],['Country calling code','+'+result.countryCallingCode],['Country / region',result.country || result.countryCallingRegion],['Possible length',String(result.possible)],['Valid numbering pattern',String(result.valid)],['Number type',result.numberType],['Metadata source',result.metadataSource],['Checked at',result.checkedAt]] : [['Result','Input could not be parsed using the default Nigerian numbering region.']];
+      for (const [label, detail] of rows) { const item=document.createElement('article'); item.className='report-finding'; item.append(textElement('h4','',label),textElement('p','report-note',detail)); publicLookupResults.append(item); }
+      (result.limitations || []).forEach(item => publicLookupResults.append(textElement('p','report-note',item)));
+    } catch (error) { publicLookupOutputTitle.textContent='Number format needs attention'; publicLookupDisclaimer.textContent=error.message || 'Could not parse this number.'; }
+    finally { publicLookupSubmit.disabled=false; publicLookupSubmit.textContent='Check number format'; }
+  } else if (value.length < 2) { publicLookupOutputTitle.textContent='Enter a more specific query'; publicLookupDisclaimer.textContent='Enter at least two characters for the organization name.'; }
+  else {
+    const query=encodeURIComponent('"'+value+'"'); publicLookupOutputTitle.textContent='Public organization searches';
+    publicLookupDisclaimer.textContent='Choose a search provider to open results. The provider receives the query when clicked. Results may be incomplete or misleading; check original sources and do not treat a name match alone as verification.';
+    appendPublicSearchLink('Google','https://www.google.com/search?q='+query); appendPublicSearchLink('Bing','https://www.bing.com/search?q='+query); appendPublicSearchLink('DuckDuckGo','https://duckduckgo.com/?q='+query);
   }
-  publicLookupOutput.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  publicLookupOutput.scrollIntoView({behavior:'smooth',block:'start'});
 });
