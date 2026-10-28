@@ -36,6 +36,54 @@ test('private case API enforces owner isolation and versions evidence reports', 
     assert.equal(created.status, 201);
     caseId = created.body.case.id;
 
+    const importedDomain = await routeCaseRequest({
+      method: 'POST',
+      pathname: '/api/cases/' + caseId + '/import-domain-observations',
+      userId: userA,
+      body: { domain: 'example.com' },
+      domainInspector: async (domain) => ({
+        domain,
+        retrievedAt: '2026-10-27T12:00:00.000Z',
+        limitations: ['Synthetic test observation only.'],
+        observations: [
+          {
+            claim: 'DNS IPv4 check result: {"status":"ok","records":["8.8.8.8"]}',
+            category: 'direct_observation',
+            source: { name: 'Tracelynt DNS IPv4 inspection', providerId: null },
+            retrievedAt: '2026-10-27T12:00:00.000Z',
+            reviewState: 'unreviewed',
+            freshness: { state: 'unknown' },
+            provenance: { kind: 'system' },
+            limitations: ['Synthetic test observation only.']
+          },
+          {
+            claim: 'DNS MX check result: {"status":"error","records":[],"error":"SERVFAIL"}',
+            category: 'direct_observation',
+            source: { name: 'Tracelynt DNS MX inspection', providerId: null },
+            retrievedAt: '2026-10-27T12:00:00.000Z',
+            reviewState: 'unavailable',
+            freshness: { state: 'unknown' },
+            provenance: { kind: 'system' },
+            limitations: ['Synthetic test observation only.']
+          }
+        ]
+      })
+    });
+    assert.equal(importedDomain.status, 201);
+    assert.equal(importedDomain.body.importedCount, 2);
+    assert.equal(importedDomain.body.evidence[0].provenanceKind, 'system');
+    assert.equal(importedDomain.body.evidence[0].freshnessState, 'unknown');
+    assert.equal(importedDomain.body.evidence[1].reviewState, 'unavailable');
+
+    const mismatchedDomainImport = await routeCaseRequest({
+      method: 'POST',
+      pathname: '/api/cases/' + caseId + '/import-domain-observations',
+      userId: userA,
+      body: { domain: 'not-example.com' },
+      domainInspector: async () => { throw new Error('Inspector must not run for a mismatched subject.'); }
+    });
+    assert.equal(mismatchedDomainImport.status, 400);
+
     const ownList = await routeCaseRequest({ method: 'GET', pathname: '/api/cases', userId: userA });
     assert.equal(ownList.status, 200);
     assert.ok(ownList.body.cases.some((item) => item.id === caseId));
