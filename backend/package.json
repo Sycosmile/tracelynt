@@ -15,7 +15,7 @@
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
     "test": "node --test",
-    "check": "node --check src/domain-check.js && node --check src/report.js && node --check src/server.js && node --check src/auth.js && node --check src/cases.js && node --check src/db.js && node --check ../frontend/app.js && node --check db/migrate.js && node --check db/purge-pending-cases.js",
+    "check": "node --check src/domain-check.js && node --check src/report.js && node --check src/observation.js && node --check src/server.js && node --check src/auth.js && node --check src/cases.js && node --check src/db.js && node --check ../frontend/app.js && node --check db/migrate.js && node --check db/purge-pending-cases.js",
     "migrate": "node db/migrate.js",
     "purge:pending": "node db/purge-pending-cases.js"
   }
