@@ -10,7 +10,7 @@ function text(value, label, max = 300) {
 
 function timestamp(value, label, optional = false) {
   if (value == null && optional) return null;
-  if (typeof value !== 'string' || !/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,3})?Z$/.test(value)) {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/.test(value)) {
     throw new TypeError(label + ' must be an ISO 8601 UTC timestamp.');
   }
   const parsed = new Date(value);
