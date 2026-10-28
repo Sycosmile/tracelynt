@@ -95,7 +95,8 @@ async function query(run) {
     return { status: records.length ? 'ok' : 'no_records', records };
   } catch (error) {
     const code = typeof error?.code === 'string' ? error.code : 'DNS_ERROR';
-    if (code === 'ENODATA') return { status: 'no_records', records: [] };\n    if (code === 'ENOTFOUND') return { status: 'error', records: [], error: 'DNS_NAME_NOT_FOUND' };
+    if (code === 'ENODATA') return { status: 'no_records', records: [] };
+    if (code === 'ENOTFOUND') return { status: 'error', records: [], error: 'DNS_NAME_NOT_FOUND' };
     return { status: 'error', records: [], error: code };
   }
 }
