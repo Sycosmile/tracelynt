@@ -66,9 +66,9 @@ test('private case API enforces owner isolation and versions evidence reports', 
       }
     });
     assert.equal(evidenceCreated.status, 201);
-    assert.equal(evidenceCreated.body.evidence.sourcePublishedAt, '2026-10-26T09:00:00.000Z');
+    assert.equal(new Date(evidenceCreated.body.evidence.sourcePublishedAt).toISOString(), '2026-10-26T09:00:00.000Z');
     assert.equal(evidenceCreated.body.evidence.freshnessState, 'stale');
-    assert.equal(evidenceCreated.body.evidence.freshnessAsOf, '2026-10-27T11:00:00.000Z');
+    assert.equal(new Date(evidenceCreated.body.evidence.freshnessAsOf).toISOString(), '2026-10-27T11:00:00.000Z');
     assert.equal(evidenceCreated.body.evidence.provenanceKind, 'provider');
     assert.equal(evidenceCreated.body.evidence.provenanceActorId, 'test-analyst-17');
     assert.equal(evidenceCreated.body.evidence.sourceProviderId, 'test-public-registry');
