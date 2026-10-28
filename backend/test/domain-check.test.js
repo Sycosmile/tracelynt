@@ -52,6 +52,11 @@ test('returns DNS observations and TLS metadata with provenance limitations', as
   assert.equal(result.checks.tls.authorized, true);
   assert.ok(result.retrievedAt);
   assert.ok(result.limitations.length >= 1);
+  assert.equal(result.observations.length, 5);
+  assert.equal(result.observations[0].subject.value, 'example.com');
+  assert.equal(result.observations[0].provenance.kind, 'system');
+  assert.equal(result.observations[0].retrievedAt, result.retrievedAt);
+  assert.match(result.observations[0].claim, /DNS IPv4 check result/);
 });
 
 test('blocks a domain if any resolved address is non-public', async () => {
