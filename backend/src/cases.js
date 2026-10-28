@@ -6,6 +6,8 @@ import { isPublicIp } from './domain-check.js';
 const SUBJECT_TYPES = new Set(['business', 'domain', 'phone_number', 'other']);
 const REVIEW_STATES = new Set(['unreviewed', 'corroborated', 'disputed', 'unavailable', 'retracted']);
 const EVIDENCE_CATEGORIES = new Set(['public_record', 'direct_observation', 'provider_data', 'user_report', 'analyst_assessment']);
+const FRESHNESS_STATES = new Set(['current', 'stale', 'unknown', 'not_applicable']);
+const PROVENANCE_KINDS = new Set(['provider', 'analyst', 'system', 'user']);
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function invalid(message) {
@@ -60,6 +62,10 @@ function validateEvidence(body) {
       throw new TypeError('Local and internal source URLs are not allowed.');
     }
   }
+  const freshnessState = body.freshnessState === undefined ? 'unknown' : text(body.freshnessState, 'Freshness state', 30);
+  if (!FRESHNESS_STATES.has(freshnessState)) throw new TypeError('Freshness state is not supported.');
+  const provenanceKind = body.provenanceKind === undefined ? 'user' : text(body.provenanceKind, 'Provenance kind', 20);
+  if (!PROVENANCE_KINDS.has(provenanceKind)) throw new TypeError('Provenance kind is not supported.');
   return {
     claim: text(body.claim, 'Claim', 5000),
     category,
@@ -67,7 +73,13 @@ function validateEvidence(body) {
     sourceName: text(body.sourceName, 'Source name', 300),
     sourceUrl,
     limitations: text(body.limitations ?? '', 'Limitations', 5000, false),
-    observedAt: body.observedAt == null || body.observedAt === '' ? null : validDate(body.observedAt)
+    observedAt: body.observedAt == null || body.observedAt === '' ? null : validDate(body.observedAt),
+    sourcePublishedAt: body.sourcePublishedAt == null || body.sourcePublishedAt === '' ? null : validDate(body.sourcePublishedAt),
+    freshnessState,
+    freshnessAsOf: body.freshnessAsOf == null || body.freshnessAsOf === '' ? null : validDate(body.freshnessAsOf),
+    provenanceKind,
+    provenanceActorId: body.provenanceActorId == null || body.provenanceActorId === '' ? null : text(body.provenanceActorId, 'Provenance actor ID', 100),
+    sourceProviderId: body.sourceProviderId == null || body.sourceProviderId === '' ? null : text(body.sourceProviderId, 'Source provider ID', 100)
   };
 }
 
@@ -212,7 +224,7 @@ export async function routeCaseRequest({ method, pathname, body, userId }) {
           return notFound();
         }
         const result = await client.query(
-          'SELECT id, claim, category, review_state AS "reviewState", source_name AS "sourceName", source_url AS "sourceUrl", observed_at AS "observedAt", created_at AS "createdAt", updated_at AS "updatedAt", limitations, correction_note AS "correctionNote", retracted_at AS "retractedAt" FROM evidence_items WHERE case_id = $1 ORDER BY created_at DESC LIMIT 200',
+          'SELECT id, claim, category, review_state AS "reviewState", source_name AS "sourceName", source_url AS "sourceUrl", observed_at AS "observedAt", source_published_at AS "sourcePublishedAt", created_at AS "createdAt", updated_at AS "updatedAt", limitations, correction_note AS "correctionNote", retracted_at AS "retractedAt", freshness_state AS "freshnessState", freshness_as_of AS "freshnessAsOf", provenance_kind AS "provenanceKind", provenance_actor_id AS "provenanceActorId", source_provider_id AS "sourceProviderId" FROM evidence_items WHERE case_id = $1 ORDER BY created_at DESC LIMIT 200',
           [caseId]
         );
         await audit(client, userId, 'list', 'evidence', caseId);
@@ -233,8 +245,8 @@ export async function routeCaseRequest({ method, pathname, body, userId }) {
         }
         const id = randomUUID();
         const result = await client.query(
-          'INSERT INTO evidence_items (id, case_id, creator_user_id, claim, category, review_state, source_name, source_url, observed_at, limitations) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id, claim, category, review_state AS "reviewState", source_name AS "sourceName", source_url AS "sourceUrl", observed_at AS "observedAt", created_at AS "createdAt", limitations',
-          [id, caseId, userId, input.claim, input.category, input.reviewState, input.sourceName, input.sourceUrl, input.observedAt, input.limitations]
+          'INSERT INTO evidence_items (id, case_id, creator_user_id, claim, category, review_state, source_name, source_url, observed_at, limitations, source_published_at, freshness_state, freshness_as_of, provenance_kind, provenance_actor_id, source_provider_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING id, claim, category, review_state AS "reviewState", source_name AS "sourceName", source_url AS "sourceUrl", observed_at AS "observedAt", source_published_at AS "sourcePublishedAt", created_at AS "createdAt", limitations, freshness_state AS "freshnessState", freshness_as_of AS "freshnessAsOf", provenance_kind AS "provenanceKind", provenance_actor_id AS "provenanceActorId", source_provider_id AS "sourceProviderId"',
+          [id, caseId, userId, input.claim, input.category, input.reviewState, input.sourceName, input.sourceUrl, input.observedAt, input.limitations, input.sourcePublishedAt, input.freshnessState, input.freshnessAsOf, input.provenanceKind, input.provenanceActorId, input.sourceProviderId]
         );
         await client.query('UPDATE cases SET updated_at = now() WHERE id = $1', [caseId]);
         await audit(client, userId, 'create', 'evidence', id);
@@ -359,7 +371,7 @@ export async function routeCaseRequest({ method, pathname, body, userId }) {
           return notFound();
         }
         const evidence = await client.query(
-          'SELECT id, claim, category, review_state, source_name, source_url, observed_at, created_at, limitations, correction_note, retracted_at FROM evidence_items WHERE case_id = $1 ORDER BY created_at ASC LIMIT 200',
+          'SELECT id, claim, category, review_state, source_name, source_url, observed_at, source_published_at, created_at, limitations, correction_note, retracted_at, freshness_state, freshness_as_of, provenance_kind, provenance_actor_id, source_provider_id FROM evidence_items WHERE case_id = $1 ORDER BY created_at ASC LIMIT 200',
           [caseId]
         );
         if (evidence.rowCount < 1) return invalid('Add at least one evidence item before generating a report.');
@@ -378,7 +390,11 @@ export async function routeCaseRequest({ method, pathname, body, userId }) {
             verificationState: item.review_state,
             source: { name: item.source_name, url: item.source_url },
             observedAt: item.observed_at,
+            sourcePublishedAt: item.source_published_at,
             recordedAt: item.created_at,
+            freshness: { state: item.freshness_state, asOf: item.freshness_as_of },
+            provenance: { kind: item.provenance_kind, actorId: item.provenance_actor_id },
+            sourceProviderId: item.source_provider_id,
             limitations: item.limitations,
             correctionNote: item.correction_note,
             retractedAt: item.retracted_at

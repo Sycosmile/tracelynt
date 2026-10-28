@@ -55,10 +55,54 @@ test('private case API enforces owner isolation and versions evidence reports', 
         category: 'direct_observation',
         sourceName: 'Automated test',
         sourceUrl: '',
-        limitations: 'Not real evidence.'
+        limitations: 'Not real evidence.',
+        observedAt: '2026-10-27T10:00:00.000Z',
+        sourcePublishedAt: '2026-10-26T09:00:00.000Z',
+        freshnessState: 'stale',
+        freshnessAsOf: '2026-10-27T11:00:00.000Z',
+        provenanceKind: 'provider',
+        provenanceActorId: 'test-analyst-17',
+        sourceProviderId: 'test-public-registry'
       }
     });
     assert.equal(evidenceCreated.status, 201);
+    assert.equal(new Date(evidenceCreated.body.evidence.sourcePublishedAt).toISOString(), '2026-10-26T09:00:00.000Z');
+    assert.equal(evidenceCreated.body.evidence.freshnessState, 'stale');
+    assert.equal(new Date(evidenceCreated.body.evidence.freshnessAsOf).toISOString(), '2026-10-27T11:00:00.000Z');
+    assert.equal(evidenceCreated.body.evidence.provenanceKind, 'provider');
+    assert.equal(evidenceCreated.body.evidence.provenanceActorId, 'test-analyst-17');
+    assert.equal(evidenceCreated.body.evidence.sourceProviderId, 'test-public-registry');
+
+    const legacyEvidence = await routeCaseRequest({
+      method: 'POST', pathname: '/api/cases/' + caseId + '/evidence', userId: userA,
+      body: {
+        claim: 'Legacy-shaped synthetic evidence.',
+        category: 'user_report',
+        sourceName: 'Manual test input',
+        sourceUrl: '',
+        limitations: 'Compatibility test.'
+      }
+    });
+    assert.equal(legacyEvidence.status, 201);
+    assert.equal(legacyEvidence.body.evidence.freshnessState, 'unknown');
+    assert.equal(legacyEvidence.body.evidence.freshnessAsOf, null);
+    assert.equal(legacyEvidence.body.evidence.sourcePublishedAt, null);
+    assert.equal(legacyEvidence.body.evidence.provenanceKind, 'user');
+    assert.equal(legacyEvidence.body.evidence.provenanceActorId, null);
+    assert.equal(legacyEvidence.body.evidence.sourceProviderId, null);
+
+    const ownEvidence = await routeCaseRequest({
+      method: 'GET', pathname: '/api/cases/' + caseId + '/evidence', userId: userA
+    });
+    assert.equal(ownEvidence.status, 200);
+    const persistedEvidence = ownEvidence.body.evidence.find((item) => item.id === evidenceCreated.body.evidence.id);
+    assert.ok(persistedEvidence);
+    assert.equal(new Date(persistedEvidence.sourcePublishedAt).toISOString(), '2026-10-26T09:00:00.000Z');
+    assert.equal(persistedEvidence.freshnessState, 'stale');
+    assert.equal(new Date(persistedEvidence.freshnessAsOf).toISOString(), '2026-10-27T11:00:00.000Z');
+    assert.equal(persistedEvidence.provenanceKind, 'provider');
+    assert.equal(persistedEvidence.provenanceActorId, 'test-analyst-17');
+    assert.equal(persistedEvidence.sourceProviderId, 'test-public-registry');
 
     const foreignEvidence = await routeCaseRequest({
       method: 'GET', pathname: '/api/cases/' + caseId + '/evidence', userId: userB
@@ -70,6 +114,25 @@ test('private case API enforces owner isolation and versions evidence reports', 
     });
     assert.equal(report.status, 201);
     assert.match(report.body.report.reportData.interpretation.statement, /not independently verified/);
+    const findings = report.body.report.reportData.findings;
+    const provenanceFinding = findings.find((item) => item.id === evidenceCreated.body.evidence.id);
+    assert.ok(provenanceFinding);
+    assert.equal(provenanceFinding.sourcePublishedAt, '2026-10-26T09:00:00.000Z');
+    assert.deepEqual(provenanceFinding.freshness, {
+      state: 'stale',
+      asOf: '2026-10-27T11:00:00.000Z'
+    });
+    assert.deepEqual(provenanceFinding.provenance, {
+      kind: 'provider',
+      actorId: 'test-analyst-17'
+    });
+    assert.equal(provenanceFinding.sourceProviderId, 'test-public-registry');
+    const legacyFinding = findings.find((item) => item.id === legacyEvidence.body.evidence.id);
+    assert.ok(legacyFinding);
+    assert.equal(legacyFinding.sourcePublishedAt, null);
+    assert.deepEqual(legacyFinding.freshness, { state: 'unknown', asOf: null });
+    assert.deepEqual(legacyFinding.provenance, { kind: 'user', actorId: null });
+    assert.equal(legacyFinding.sourceProviderId, null);
     const reportId = report.body.report.id;
     const ownReportRead = await routeCaseRequest({
       method: 'GET', pathname: '/api/cases/' + caseId + '/reports/' + reportId, userId: userA
