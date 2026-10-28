@@ -105,6 +105,15 @@ These estimates are provisional for a solo developer and must be revised from me
 - **Phase 3 — analyst workflow and reports (2–4 weeks):** investigation templates, evidence-gap-driven pivots, HTML/PDF exports, report comparison, audited exports, and accessibility improvements.
 - **Phase 4 — controlled beta and advanced capabilities (3–6+ weeks):** provider monitoring and cost controls, explicit team roles/sharing, scoped API/CLI access, provider evaluation, and independent security/privacy review.
 
+### Current implementation checkpoint — 2026-10-28
+
+- [x] Pin this investigator-focused strategy in this roadmap and link it from the README.
+- [x] Add a dependency-free observation normalizer with a versioned schema, source/provenance fields, separate observation and retrieval times, freshness/review states, limitations, and source URL checks.
+- [x] Add unit tests for valid records, required provenance, unsupported states, unsafe source URLs, timestamps, and limitations.
+- [x] Include the new module in the syntax-check command.
+- [ ] Run the new tests in CI and fix any failures.
+- [ ] Wire the contract into a real lookup, private case persistence, and report output. The module is currently a foundation and is not yet used by the request path.
+
 ### First implementation slice
 
 1. Add a dependency-free, versioned observation normalizer/validator with deterministic tests.
