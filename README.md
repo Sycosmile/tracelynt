@@ -31,7 +31,7 @@ Tracelynt is an evidence-led intelligence and verification workspace for researc
 - The existing `/api/report` endpoint creates an in-memory report from analyst-supplied data; case reports are persisted as immutable version snapshots.
 - GitHub Actions is configured to run backend checks and PostgreSQL integration tests. Check the [Actions page](https://github.com/Sycosmile/tracelynt/actions) for the current result. Local tests that require PostgreSQL still need a reachable database.
 
-See [Backend](backend/README.md), [Database setup](backend/db/README.md), [Product requirements](docs/PRODUCT_REQUIREMENTS.md), and [Security design](docs/CASE_WORKSPACE_DESIGN.md).
+See the [Product Roadmap](docs/ROADMAP.md), [Backend](backend/README.md), [Database setup](backend/db/README.md), [Product requirements](docs/PRODUCT_REQUIREMENTS.md), and [Security design](docs/CASE_WORKSPACE_DESIGN.md).
 
 ## Product direction
 
