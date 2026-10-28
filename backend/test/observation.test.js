@@ -54,6 +54,24 @@ test('rejects unsafe or misleading source URLs', () => {
   ]) assert.throws(() => normalizeObservation({ ...valid, source: { name: 'Test source', url } }), undefined, url);
 });
 
+test('rejects impossible calendar dates instead of normalizing them', () => {
+  for (const timestamp of [
+    '2026-02-30T10:00:00Z',
+    '2026-13-01T10:00:00Z',
+    '2026-10-28T25:00:00Z',
+    '2026-10-28T10:61:00Z'
+  ]) {
+    assert.throws(() => normalizeObservation({ ...valid, retrievedAt: timestamp }), /valid timestamp/, timestamp);
+  }
+});
+
+test('rejects IPv6 literals as public source hostnames', () => {
+  assert.throws(
+    () => normalizeObservation({ ...valid, source: { name: 'Test source', url: 'https://[2606:4700:4700::1111]/' } }),
+    /named public hostname/
+  );
+});
+
 test('distinguishes missing observation time from missing retrieval time', () => {
   const result = normalizeObservation({ ...valid, observedAt: null });
   assert.equal(result.observedAt, null);
