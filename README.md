@@ -15,7 +15,7 @@ Tracelynt is an evidence-led intelligence and verification workspace for researc
 - TLS certificate metadata from a validated public IPv4 address.
 - Same-origin browser interface served by the backend.
 - Request-size limits, no-store responses, CSP headers, and a basic in-memory per-IP rate limit.
-- Evidence report builder for business/domain findings with source attribution, review states, timestamps, and explicit limitations.
+- Shared versioned observation normalizer with source/provenance, retrieval and observation timestamps, freshness/review states, and limitations (foundation module; not yet wired into lookup routes).\n- Evidence report builder for business/domain findings with source attribution, review states, timestamps, and explicit limitations.
 - PostgreSQL migrations for users, sessions, login transactions, cases, evidence, report versions, and audit events.
 - Configurable OpenID Connect authorization-code flow with state, nonce, PKCE, opaque server-side sessions, hashed session tokens, logout revocation, and CSRF checks.
 - Private case APIs for owner-scoped listing, creation, reading, updates, archive status, evidence records, versioned evidence summaries, audited report reads/exports, and confirmed deletion requests.
