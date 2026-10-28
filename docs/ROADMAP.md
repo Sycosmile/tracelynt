@@ -21,8 +21,8 @@ Exit criteria: reviewed requirements, explicit provisional stack decisions, clea
 - [x] Build a same-origin search and results UI.
 - [x] Return timestamped technical observations and explicit limitations.
 - [x] Test domain validation and unsafe destination rejection.
+- [x] Add structured observation provenance and distinguish empty DNS results from lookup failures; retain partial-check error details.
 - [ ] Expand adversarial SSRF testing and independently review network safeguards.
-- [x] Add structured observation provenance and distinguish empty DNS results from lookup failures; retain partial-check error details.\n- [ ] Expand adversarial SSRF testing and independently review network safeguards.
 
 Exit criteria: tests cover malicious destinations; internal targets cannot be reached; failures are not misrepresented as negative findings.
 
@@ -112,7 +112,9 @@ These estimates are provisional for a solo developer and must be revised from me
 - [x] Add unit tests for valid records, required provenance, unsupported states, unsafe source URLs, timestamps, and limitations.
 - [x] Include the new module in the syntax-check command.
 - [x] Run the observation normalizer tests in CI and fix failures.
-- [x] Wire normalized observations into domain lookup, private case persistence, and versioned report snapshots.\n- [x] Add a versioned provider-result contract with distinct success, empty, partial, stale, rate-limited, unavailable, and error outcomes; validate freshness, timestamps, bounded errors, and retry guidance.\n- [ ] Adopt the provider-result contract in existing and future provider adapters; this first slice defines and tests the contract but does not yet replace all provider-specific response handling.
+- [x] Wire normalized observations into domain lookup, private case persistence, and versioned report snapshots.
+- [x] Add a versioned provider-result contract with distinct success, empty, partial, stale, rate-limited, unavailable, and error outcomes; validate freshness, timestamps, bounded errors, and retry guidance.
+- [ ] Adopt the provider-result contract in existing and future provider adapters; this first slice defines and tests the contract but does not yet replace all provider-specific response handling.
 
 ### First implementation slice
 
