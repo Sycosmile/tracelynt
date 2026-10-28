@@ -1,6 +1,7 @@
 import http from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { inspectDomain } from './domain-check.js';
+import { inspectPhoneNumber } from './phone-number.js';
 import { createEvidenceReport } from './report.js';
 import { appOrigin, assertCsrf, beginLogin, clearAuthCookies, completeLogin, currentUser, getCsrfToken, loginBinding, logout, requestAccountDeletion } from './auth.js';
 import { routeCaseRequest } from './cases.js';
@@ -174,6 +175,17 @@ export const server = http.createServer(async (request, response) => {
       const status = error.statusCode || (error.code === 'CSRF_DENIED' ? 403 : 503);
       return send(response, status, { error: error.code || (status === 403 ? 'CSRF_DENIED' : 'WORKSPACE_UNAVAILABLE'), ...(status === 400 ? { message: error.message } : {}) });
     }
+  }
+  if (request.method === 'POST' && pathname === '/api/phone-number') {
+    const address = request.socket.remoteAddress || 'unknown';
+    if (!allowedByRateLimit(address + ':phone', 30)) return send(response, 429, { error: 'RATE_LIMITED', message: 'Too many phone-format checks. Try again later.' });
+    if (!String(request.headers['content-type'] || '').toLowerCase().includes('application/json')) return send(response, 415, { error: 'JSON_REQUIRED' });
+    try {
+      const body = await readJson(request, BODY_LIMIT);
+      const defaultCountry = body?.defaultCountry || 'NG';
+      if (!['NG','US','GB','CA','GH','ZA','KE','IN'].includes(defaultCountry)) return send(response, 400, { error: 'UNSUPPORTED_DEFAULT_REGION' });
+      return send(response, 200, inspectPhoneNumber(body?.phoneNumber, defaultCountry));
+    } catch (error) { return send(response, error.statusCode || 400, { error: error.code || 'PHONE_CHECK_FAILED', message: error.message || 'Phone-number check failed.' }); }
   }
   const isDomainCheck = request.method === 'POST' && pathname === '/api/domain-check';
   const isReport = request.method === 'POST' && pathname === '/api/report';
