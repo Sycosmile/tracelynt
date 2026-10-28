@@ -491,7 +491,9 @@ async function openCase(caseId) {
     selectedCase.subjectType.replaceAll('_', ' ') + ' · ' + selectedCase.subjectLabel + ' · ' + selectedCase.status;
   document.querySelector('#archive-case').textContent = selectedCase.status === 'archived' ? 'Reopen case' : 'Archive';
   document.querySelector('#evidence-form').hidden = selectedCase.status !== 'open';
-  const importDomainButton = document.querySelector('#import-domain-observations');\n  importDomainButton.hidden = selectedCase.status !== 'open' || selectedCase.subjectType !== 'domain';\n  importDomainButton.disabled = false;
+  const importDomainButton = document.querySelector('#import-domain-observations');
+  importDomainButton.hidden = selectedCase.status !== 'open' || selectedCase.subjectType !== 'domain';
+  importDomainButton.disabled = false;
   document.querySelector('#generate-case-report').disabled = selectedCase.status !== 'open';
   const payloadEvidence = await workspaceRequest('/api/cases/' + encodeURIComponent(caseId) + '/evidence');
   renderCaseEvidence(payloadEvidence.evidence || []);
