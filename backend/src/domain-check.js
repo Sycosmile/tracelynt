@@ -2,6 +2,7 @@ import dns from 'node:dns/promises';
 import net from 'node:net';
 import tls from 'node:tls';
 import { domainToASCII } from 'node:url';
+import { normalizeObservation } from './observation.js';
 
 const RESERVED_SUFFIXES = ['.localhost', '.local', '.internal', '.test', '.invalid', '.example', '.onion'];
 const MAX_DOMAIN_LENGTH = 253;
@@ -156,22 +157,37 @@ export async function inspectDomain(input, dependencies = {}) {
   const tlsInfo = publicIpv4.length
     ? await tlsCheck(publicIpv4[0], domain)
     : { status: 'skipped', reason: 'No public IPv4 address available for the current TLS check.' };
-  return {
-    domain,
-    retrievedAt: new Date().toISOString(),
-    checks: {
-      dns: {
-        ipv4: { status: a.status, records: a.records },
-        ipv6: { status: aaaa.status, records: aaaa.records },
-        mx: { status: mx.status, records: mx.records.slice(0, 10).map(item => ({ exchange: item.exchange, priority: item.priority })) },
-        txt: { status: txt.status, records: txt.records.slice(0, 10).map(parts => parts.join('').slice(0, 512)) }
-      },
-      tls: tlsInfo
+  const retrievedAt = new Date().toISOString();
+  const checks = {
+    dns: {
+      ipv4: { status: a.status, records: a.records },
+      ipv6: { status: aaaa.status, records: aaaa.records },
+      mx: { status: mx.status, records: mx.records.slice(0, 10).map(item => ({ exchange: item.exchange, priority: item.priority })) },
+      txt: { status: txt.status, records: txt.records.slice(0, 10).map(parts => parts.join('').slice(0, 512)) }
     },
-    limitations: [
-      'Results reflect a point-in-time technical observation and may change.',
-      'A DNS or TLS result does not establish website legitimacy or the identity of an operator.',
-      'TLS is attempted only against a validated public IPv4 address in this initial version.'
-    ]
+    tls: tlsInfo
   };
+  const limitations = [
+    'Results reflect a point-in-time technical observation and may change.',
+    'A DNS or TLS result does not establish website legitimacy or the identity of an operator.',
+    'TLS is attempted only against a validated public IPv4 address in this initial version.'
+  ];
+  const observations = Object.entries({
+    'DNS IPv4': checks.dns.ipv4,
+    'DNS IPv6': checks.dns.ipv6,
+    'DNS MX': checks.dns.mx,
+    'DNS TXT': checks.dns.txt,
+    'TLS certificate': checks.tls
+  }).map(([name, result]) => normalizeObservation({
+    subject: { type: 'domain', value: domain },
+    claim: name + ' check result: ' + JSON.stringify(result),
+    category: 'direct_observation',
+    source: { name: 'Tracelynt ' + name + ' inspection' },
+    retrievedAt,
+    reviewState: result.status === 'error' ? 'unavailable' : 'unreviewed',
+    freshness: { state: 'unknown' },
+    provenance: { kind: 'system' },
+    limitations
+  }));
+  return { domain, retrievedAt, checks, observations, limitations };
 }
