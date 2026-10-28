@@ -1,3 +1,5 @@
+import net from 'node:net';
+
 const SUBJECT_TYPES = new Set(['domain', 'ip_address', 'phone_number', 'email', 'username', 'organization', 'business', 'other']);
 const CATEGORIES = new Set(['provider_data', 'public_record', 'direct_observation', 'user_report', 'analyst_assessment']);
 const REVIEW_STATES = new Set(['unreviewed', 'corroborated', 'disputed', 'unavailable', 'retracted']);
@@ -23,7 +25,9 @@ function isoDate(value, label, optional = false) {
     throw new TypeError(label + ' must be an ISO 8601 UTC timestamp.');
   }
   const date = new Date(value);
-  if (!Number.isFinite(date.getTime())) throw new TypeError(label + ' must be a valid timestamp.');
+  if (!Number.isFinite(date.getTime()) || date.toISOString().slice(0, 19) !== value.slice(0, 19)) {
+    throw new TypeError(label + ' must be a valid timestamp.');
+  }
   return date.toISOString();
 }
 
@@ -34,7 +38,7 @@ function normalizeSourceUrl(value) {
   try { url = new URL(raw); } catch { throw new TypeError('Source URL must be a valid HTTPS URL.'); }
   const host = url.hostname.toLowerCase().replace(/^\[|\]$/g, '').replace(/\.$/, '');
   if (url.protocol !== 'https:' || url.username || url.password || !host.includes('.') ||
-      /^\d+(?:\.\d+){3}$/.test(host) || host.includes(':') ||
+      net.isIP(host) !== 0 ||
       RESERVED_SUFFIXES.some(suffix => host === suffix || host.endsWith('.' + suffix))) {
     throw new TypeError('Source URL must be HTTPS and use a named public hostname without credentials.');
   }
