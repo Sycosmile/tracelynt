@@ -11,7 +11,7 @@ export function inspectPhoneNumber(input, defaultCountry = 'NG') {
     throw Object.assign(new Error('Provide a phone number no longer than 160 characters.'), { statusCode: 400, code: 'INVALID_PHONE_INPUT' });
   }
   const value = input.trim();
-  if (!value || !/^[+()0-9.\\s-]+$/.test(value)) {
+  if (!value || !/^[+()0-9.\s-]+$/.test(value)) {
     throw Object.assign(new Error('Use digits and common phone-number separators only.'), { statusCode: 400, code: 'INVALID_PHONE_INPUT' });
   }
   const parsed = parsePhoneNumber(value, defaultCountry, { extract: false });
