@@ -164,7 +164,7 @@ export async function inspectDomain(input, dependencies = {}) {
       ipv4: { status: a.status, records: a.records, ...(a.error ? { error: a.error } : {}) },
       ipv6: { status: aaaa.status, records: aaaa.records, ...(aaaa.error ? { error: aaaa.error } : {}) },
       mx: { status: mx.status, records: mx.records.slice(0, 10).map(item => ({ exchange: item.exchange, priority: item.priority })), ...(mx.error ? { error: mx.error } : {}) },
-      txt: { status: txt.status, records: txt.records.slice(0, 10).map(parts => parts.join('').slice(0, 512)) }
+      txt: { status: txt.status, records: txt.records.slice(0, 10).map(parts => parts.join('').slice(0, 512)), ...(txt.error ? { error: txt.error } : {}) }
     },
     tls: tlsInfo
   };
