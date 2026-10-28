@@ -42,14 +42,14 @@ Exit criteria: cross-user access tests pass; access and retention behavior are v
 
 ## Phase 3 — phone-number metadata
 
-- [ ] Add numbering-plan parsing and normalization.
+- [x] Add numbering-plan parsing and normalization using maintained libphonenumber-js/max metadata; validity is not subscriber or identity verification.
 - [x] Add a phone-format lookup interface with normalization and explicit limits (not a numbering-plan database).
 - [x] Add public-web search links for business/organization names with visible external-provider handoff and privacy notice.
 - [ ] Support combined name-and-number research without treating a match as identity proof.
-- [ ] Show only supported metadata with source and timestamp.
+- [x] Show supported numbering-plan metadata with source and timestamp.
 - [ ] Review provider terms, permissions, and retention.
 - [ ] Distinguish number control from identity in UI and reports.
-- [ ] Add rate limits and anti-enumeration controls.
+- [x] Add bounded per-address rate limiting to phone-format checks; bulk enumeration remains unsupported.
 
 Exit criteria: no private subscriber lookup, bulk enumeration, or unsupported identity claims.
 
