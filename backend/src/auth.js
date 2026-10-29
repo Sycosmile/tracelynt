@@ -69,6 +69,11 @@ function cookieValue(request, name) {
   return null;
 }
 
+function sessionCookieToken(request) {
+  const token = cookieValue(request, SESSION_COOKIE);
+  return typeof token === 'string' && /^[A-Za-z0-9_-]{43}$/.test(token) ? token : null;
+}
+
 function cookie(name, value, options = {}) {
   const parts = [name + '=' + encodeURIComponent(value), 'Path=/', 'SameSite=Lax'];
   if (options.maxAge !== undefined) parts.push('Max-Age=' + options.maxAge);
@@ -99,7 +104,7 @@ function csrfFor(sessionToken) {
 }
 
 export function getCsrfToken(request) {
-  const token = cookieValue(request, SESSION_COOKIE);
+  const token = sessionCookieToken(request);
   if (!token) return null;
   return csrfFor(token);
 }
@@ -113,7 +118,7 @@ export function assertCsrf(request) {
   if ((origin && origin !== expectedOrigin) || (!origin && refererOrigin !== expectedOrigin)) {
     throw Object.assign(new Error('Cross-origin request denied.'), { statusCode: 403, code: 'CSRF_DENIED' });
   }
-  const sessionToken = cookieValue(request, SESSION_COOKIE);
+  const sessionToken = sessionCookieToken(request);
   const supplied = request.headers['x-csrf-token'];
   if (!sessionToken || typeof supplied !== 'string') {
     throw Object.assign(new Error('CSRF token required.'), { statusCode: 403, code: 'CSRF_DENIED' });
@@ -225,8 +230,8 @@ export async function completeLogin(requestUrl, browserBinding) {
 }
 
 export async function currentUser(request) {
-  const token = cookieValue(request, SESSION_COOKIE);
-  if (!token || token.length < 40 || token.length > 64) return null;
+  const token = sessionCookieToken(request);
+  if (!token) return null;
   const result = await query(
     'SELECT u.id, u.status FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = $1 AND s.revoked_at IS NULL AND s.expires_at > now()',
     [hash(token)]
