@@ -52,6 +52,12 @@ test('returns DNS observations and TLS metadata with provenance limitations', as
   assert.equal(result.checks.tls.authorized, true);
   assert.ok(result.retrievedAt);
   assert.ok(result.limitations.length >= 1);
+  assert.equal(result.providerResults.length, 5);
+  assert.equal(result.providerResults[0].providerId, 'dns-a');
+  assert.equal(result.providerResults[0].outcome, 'success');
+  assert.equal(result.providerResults[0].records[0], '8.8.8.8');
+  assert.equal(result.providerResults[1].outcome, 'no_records');
+  assert.equal(result.providerResults[0].retrievedAt, result.retrievedAt);
   assert.equal(result.observations.length, 5);
   assert.equal(result.observations[0].subject.value, 'example.com');
   assert.equal(result.observations[0].provenance.kind, 'system');
@@ -85,4 +91,7 @@ test('distinguishes a missing DNS name from a record type with no records', asyn
   assert.equal(result.checks.dns.ipv6.status, 'no_records');
   assert.equal(result.observations[0].reviewState, 'unavailable');
   assert.equal(result.observations[1].reviewState, 'unreviewed');
+  assert.equal(result.providerResults[0].outcome, 'unavailable');
+  assert.equal(result.providerResults[0].errors[0].code, 'DNS_NAME_NOT_FOUND');
+  assert.equal(result.providerResults[1].outcome, 'no_records');
 });
