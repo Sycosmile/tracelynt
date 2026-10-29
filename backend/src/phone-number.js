@@ -23,7 +23,7 @@ export function inspectPhoneNumber(input, defaultCountry = 'NG') {
       input: value, parsed: false, possible: false, valid: false, limitations: LIMITATIONS,
       providerResult: normalizeProviderResult({
         providerId: 'libphonenumber-js',
-        outcome: 'unavailable',
+        outcome: 'error',
         records: [],
         retrievedAt: checkedAt,
         freshness: 'unknown',
@@ -45,7 +45,7 @@ export function inspectPhoneNumber(input, defaultCountry = 'NG') {
     ...record,
     providerResult: normalizeProviderResult({
       providerId: 'libphonenumber-js',
-      outcome: possible ? 'success' : 'unavailable',
+      outcome: possible ? 'success' : 'error',
       records: possible ? [record] : [],
       retrievedAt: checkedAt,
       freshness: 'unknown',
