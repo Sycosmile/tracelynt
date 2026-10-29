@@ -114,7 +114,8 @@ These estimates are provisional for a solo developer and must be revised from me
 - [x] Run the observation normalizer tests in CI and fix failures.
 - [x] Wire normalized observations into domain lookup, private case persistence, and versioned report snapshots.
 - [x] Add a versioned provider-result contract with distinct success, empty, partial, stale, rate-limited, unavailable, and error outcomes; validate freshness, timestamps, bounded errors, and retry guidance.
-- [ ] Adopt the provider-result contract in existing and future provider adapters; this first slice defines and tests the contract but does not yet replace all provider-specific response handling.
+- [x] Adopt the provider-result contract in DNS A/AAAA, MX, TXT, and TLS domain checks while preserving existing response fields for compatibility.
+- [ ] Adopt the provider-result contract in the phone-number metadata adapter and future external providers.
 
 ### First implementation slice
 
