@@ -51,7 +51,11 @@ test('rejects non-HTTPS, credential-bearing, local, and private-IP source links'
     'https://8.8.8.8/source',
     'https://[::1]/source',
     'https://[2606:4700:4700::1111]/source',
-    'https://192.168.1.1/source'
+    'https://192.168.1.1/source',
+    'https://0177.0.0.1/source',
+    'https://2130706433/source',
+    'https://0x7f000001/source',
+    'https://0x7f.1/source'
   ]) {
     assert.throws(() => createEvidenceReport({ ...validInput, findings: [{ ...validInput.findings[0], sourceUrl }] }), undefined, sourceUrl);
   }
