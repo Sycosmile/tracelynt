@@ -14,6 +14,14 @@ test('anonymous requests do not acquire a session or CSRF token', async () => {
   assert.equal(await currentUser(request), null);
 });
 
+test('rejects malformed session cookie tokens before using them', async () => {
+  for (const value of ['x', 'a'.repeat(42), 'a'.repeat(44), 'a'.repeat(42) + '!', 'a'.repeat(42) + '=']) {
+    const request = { headers: { cookie: 'tracelynt_session=' + value } };
+    assert.equal(getCsrfToken(request), null);
+    assert.equal(await currentUser(request), null);
+  }
+});
+
 test('CSRF validation rejects missing sessions, missing tokens, and foreign origins', () => {
   assert.throws(() => assertCsrf({ headers: { origin: 'http://127.0.0.1:8000' } }), /CSRF token required/);
 
