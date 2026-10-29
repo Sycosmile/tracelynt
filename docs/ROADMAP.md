@@ -10,7 +10,7 @@ Items are proposals, not completed features unless implemented and tested. Check
 - [ ] Select a production hosting target and identity provider.
 - [ ] Define contribution rules, license, and security contact.
 - [x] Add CI for syntax checks, unit tests, and PostgreSQL integration tests.
-- [x] Add dependency review, lockfile enforcement via `npm ci`, and Gitleaks secret scanning in CI.
+- [x] Add dependency auditing with `npm audit`, lockfile enforcement via `npm ci`, and Gitleaks secret scanning in CI.
 
 Exit criteria: reviewed requirements, explicit provisional stack decisions, clean CI baseline, and no secrets committed.
 
