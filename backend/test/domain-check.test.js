@@ -125,7 +125,7 @@ test('rejects additional special-use IPv4 and IPv6 ranges used in SSRF attempts'
     '2001:db8:ffff::1',
     '2001:20::1',
     '2002:0808:0808::1',
-    '3fff:ffff:ffff::1',
+    '3fff:0fff:ffff::1',
     '2001:4860:4860::8888%eth0'
   ]) assert.equal(isPublicIp(address), false, address);
 });
