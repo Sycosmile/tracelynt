@@ -3,6 +3,7 @@ import net from 'node:net';
 import tls from 'node:tls';
 import { domainToASCII } from 'node:url';
 import { normalizeObservation } from './observation.js';
+import { normalizeProviderResult } from './provider-result.js';
 
 const RESERVED_SUFFIXES = ['.localhost', '.local', '.internal', '.test', '.invalid', '.example', '.onion'];
 const MAX_DOMAIN_LENGTH = 253;
@@ -140,6 +141,24 @@ function getTlsCertificate(address, domain, timeoutMs = 4000) {
   });
 }
 
+function providerResult(providerId, check, retrievedAt, limitations) {
+  const status = check.status;
+  const records = status === 'ok'
+    ? (Array.isArray(check.records) ? check.records : [Object.fromEntries(Object.entries(check).filter(([key]) => key !== 'status'))])
+    : (Array.isArray(check.records) ? check.records : []);
+  const outcome = status === 'ok'
+    ? (records.length ? 'success' : 'no_records')
+    : status === 'no_records' ? 'no_records' : 'unavailable';
+  const errors = status === 'error'
+    ? [{ code: check.error || 'PROVIDER_ERROR', message: 'The provider did not return a usable result.', retryable: true }]
+    : status === 'skipped'
+      ? [{ code: 'CHECK_SKIPPED', message: check.reason || 'The check was skipped.', retryable: false }]
+      : [];
+  return normalizeProviderResult({
+    providerId, outcome, records, retrievedAt, freshness: 'unknown', errors, limitations
+  });
+}
+
 export async function inspectDomain(input, dependencies = {}) {
   const domain = normalizeDomain(input);
   const resolver = dependencies.resolver || dns;
@@ -190,5 +209,12 @@ export async function inspectDomain(input, dependencies = {}) {
     provenance: { kind: 'system' },
     limitations
   }));
-  return { domain, retrievedAt, checks, observations, limitations };
+  const providerResults = [
+    providerResult('dns-a', checks.dns.ipv4, retrievedAt, limitations),
+    providerResult('dns-aaaa', checks.dns.ipv6, retrievedAt, limitations),
+    providerResult('dns-mx', checks.dns.mx, retrievedAt, limitations),
+    providerResult('dns-txt', checks.dns.txt, retrievedAt, limitations),
+    providerResult('tls-certificate', checks.tls, retrievedAt, limitations)
+  ];
+  return { domain, retrievedAt, checks, observations, limitations, providerResults };
 }
