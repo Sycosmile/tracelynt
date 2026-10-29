@@ -22,8 +22,8 @@ test('parses international numbers and reports their country when identifiable',
 
 test('does not label malformed input as a valid number', () => {
   const result = inspectPhoneNumber('123');
-  assert.equal(result.parsed, false);
   assert.equal(result.valid, false);
+  assert.equal(result.possible, false);
 });
 
 test('rejects URLs, letters, empty input, and oversized values', () => {
