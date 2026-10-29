@@ -807,11 +807,28 @@ function appendPublicSearchLink(provider, href) {
   publicLookupResults.append(item);
 }
 
+const combinedPhoneField = document.createElement('div');
+combinedPhoneField.className = 'field';
+combinedPhoneField.hidden = true;
+const combinedPhoneLabel = document.createElement('label');
+combinedPhoneLabel.htmlFor = 'combined-phone-value';
+combinedPhoneLabel.textContent = 'Phone number';
+const combinedPhoneValue = document.createElement('input');
+combinedPhoneValue.id = 'combined-phone-value';
+combinedPhoneValue.maxLength = 160;
+combinedPhoneValue.placeholder = '+234 801 234 5678';
+combinedPhoneValue.autocomplete = 'off';
+combinedPhoneField.append(combinedPhoneLabel, combinedPhoneValue);
+publicLookupValue.closest('.field').after(combinedPhoneField);
+
 publicLookupType.addEventListener('change', () => {
   const isPhone = publicLookupType.value === 'phone';
+  const isCombined = publicLookupType.value === 'combined';
   publicLookupLabel.textContent = isPhone ? 'Phone number' : 'Business or organization name';
   publicLookupValue.placeholder = isPhone ? '+234 801 234 5678' : 'Registered business or organization name';
-  publicLookupSubmit.textContent = isPhone ? 'Check number format' : 'Build public searches';
+  combinedPhoneField.hidden = !isCombined;
+  combinedPhoneValue.required = isCombined;
+  publicLookupSubmit.textContent = isPhone ? 'Check number format' : (isCombined ? 'Build combined searches' : 'Build public searches');
   publicLookupOutput.hidden = true;
 });
 
@@ -833,10 +850,22 @@ publicLookupForm.addEventListener('submit', async event => {
     } catch (error) { publicLookupOutputTitle.textContent='Number format needs attention'; publicLookupDisclaimer.textContent=error.message || 'Could not parse this number.'; }
     finally { publicLookupSubmit.disabled=false; publicLookupSubmit.textContent='Check number format'; }
   } else if (value.length < 2) { publicLookupOutputTitle.textContent='Enter a more specific query'; publicLookupDisclaimer.textContent='Enter at least two characters for the organization name.'; }
-  else {
-    const query=encodeURIComponent('"'+value+'"'); publicLookupOutputTitle.textContent='Public organization searches';
-    publicLookupDisclaimer.textContent='Choose a search provider to open results. The provider receives the query when clicked. Results may be incomplete or misleading; check original sources and do not treat a name match alone as verification.';
-    appendPublicSearchLink('Google','https://www.google.com/search?q='+query); appendPublicSearchLink('Bing','https://www.bing.com/search?q='+query); appendPublicSearchLink('DuckDuckGo','https://duckduckgo.com/?q='+query);
+  else if (publicLookupType.value === 'combined' && !combinedPhoneValue.value.trim()) {
+    publicLookupOutputTitle.textContent = 'Enter both research terms';
+    publicLookupDisclaimer.textContent = 'Add a phone number to prepare a combined public-web search.';
+  } else {
+    const isCombined = publicLookupType.value === 'combined';
+    const searchText = isCombined
+      ? '"' + value + '" "' + combinedPhoneValue.value.trim() + '"'
+      : '"' + value + '"';
+    const query = encodeURIComponent(searchText);
+    publicLookupOutputTitle.textContent = isCombined ? 'Combined public searches' : 'Public organization searches';
+    publicLookupDisclaimer.textContent = isCombined
+      ? 'These links search public web pages for both terms. A co-occurrence is not proof that the number belongs to the named person or organization. Search providers receive the query only when you click a link; review original sources and conflicting evidence.'
+      : 'Choose a search provider to open results. The provider receives the query when clicked. Results may be incomplete or misleading; check original sources and do not treat a name match alone as verification.';
+    appendPublicSearchLink('Google','https://www.google.com/search?q='+query);
+    appendPublicSearchLink('Bing','https://www.bing.com/search?q='+query);
+    appendPublicSearchLink('DuckDuckGo','https://duckduckgo.com/?q='+query);
   }
   publicLookupOutput.scrollIntoView({behavior:'smooth',block:'start'});
 });
