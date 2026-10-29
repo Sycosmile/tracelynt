@@ -10,7 +10,7 @@ test('normalizes a Nigerian local number with maintained numbering metadata', ()
   assert.equal(typeof result.possible, 'boolean');
   assert.equal(typeof result.valid, 'boolean');
   assert.ok(result.checkedAt);
-  assert.match(result.metadataSource, /libphonenumber-js\\/max/);
+  assert.match(result.metadataSource, /libphonenumber-js\/max/);
   assert.equal(result.providerResult.providerId, 'libphonenumber-js');
   assert.equal(result.providerResult.outcome, 'success');
   assert.equal(result.providerResult.records[0].e164, result.e164);
