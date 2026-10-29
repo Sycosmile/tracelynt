@@ -29,8 +29,9 @@ test('does not label malformed input as a valid number', () => {
   const result = inspectPhoneNumber('123');
   assert.equal(result.valid, false);
   assert.equal(result.possible, false);
-  assert.equal(result.providerResult.outcome, 'unavailable');
+  assert.equal(result.providerResult.outcome, 'error');
   assert.equal(result.providerResult.errors[0].code, 'NUMBER_NOT_PARSEABLE');
+  assert.equal(result.providerResult.errors[0].retryable, false);
 });
 
 test('rejects URLs, letters, empty input, and oversized values', () => {
