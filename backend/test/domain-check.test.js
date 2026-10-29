@@ -9,13 +9,11 @@ test('normalizes case, trailing dot, and internationalized domain names', () => 
 
 test('rejects URLs, IP literals, local domains, and malformed labels', () => {
   for (const value of [
-    'https://example.com/path',
-    '127.0.0.1',
-    'localhost',
-    'service.local',
-    'bad..example.com',
-    'example.com:443',
-    'user@example.com'
+    'https://example.com/path', '127.0.0.1', 'localhost', 'service.local',
+    'bad..example.com', 'example.com:443', 'user@example.com', 'example.com\\@127.0.0.1',
+    'example.com\\\\evil.test', 'example.com?next=127.0.0.1', '-bad.example.com',
+    'bad-.example.com', 'a'.repeat(64) + '.example.com', 'service.internal',
+    'service.test', 'service.onion', 'service.example'
   ]) assert.throws(() => normalizeDomain(value), undefined, value);
 });
 
@@ -27,10 +25,11 @@ test('allows representative public addresses', () => {
 
 test('blocks private, loopback, link-local, documentation, and special-use IPs', () => {
   for (const address of [
-    '10.0.0.1', '172.16.0.1', '192.168.1.1', '127.0.0.1',
-    '169.254.169.254', '100.64.0.1', '192.0.2.10', '198.18.0.1',
-    '203.0.113.5', '192.31.196.1', '192.52.193.1', '192.175.48.1', '224.0.0.1', '::1', 'fc00::1', 'fe80::1',
-    '2001:db8::1', '2002::1', '3fff::1', '::ffff:127.0.0.1'
+    '0.0.0.0', '10.0.0.1', '100.64.0.1', '127.0.0.1', '169.254.169.254',
+    '172.16.0.1', '192.0.2.10', '192.168.1.1', '198.18.0.1', '198.51.100.1',
+    '203.0.113.5', '224.0.0.1', '240.0.0.1', '::1', 'fc00::1', 'fe80::1',
+    '2001:db8::1', '2002::1', '3fff::1', '::ffff:127.0.0.1', '::ffff:169.254.169.254',
+    '2001:4860:4860::8888%eth0'
   ]) assert.equal(isPublicIp(address), false, address);
 });
 
@@ -76,6 +75,21 @@ test('blocks a domain if any resolved address is non-public', async () => {
     inspectDomain('example.com', { resolver, tlsCheck: async () => ({ status: 'ok' }) }),
     /non-public or special-use/
   );
+});
+
+test('does not start TLS when DNS returns only non-public IPv6 addresses', async () => {
+  const resolver = {
+    resolve4: async () => [],
+    resolve6: async () => ['::1'],
+    resolveMx: async () => [],
+    resolveTxt: async () => []
+  };
+  let tlsCalled = false;
+  await assert.rejects(inspectDomain('example.com', {
+    resolver,
+    tlsCheck: async () => { tlsCalled = true; return { status: 'ok' }; }
+  }), /non-public or special-use/);
+  assert.equal(tlsCalled, false);
 });
 
 test('distinguishes a missing DNS name from a record type with no records', async () => {
