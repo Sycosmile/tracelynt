@@ -17,6 +17,7 @@ export function inspectPhoneNumber(input, defaultCountry = 'NG') {
   }
   const parsed = parsePhoneNumber(value, defaultCountry, { extract: false });
   const checkedAt = new Date().toISOString();
+  const possible = parsed?.isPossible() === true;
   if (!parsed) {
     return {
       input: value, parsed: false, possible: false, valid: false, limitations: LIMITATIONS,
@@ -36,7 +37,7 @@ export function inspectPhoneNumber(input, defaultCountry = 'NG') {
     internationalFormat: parsed.formatInternational(), nationalFormat: parsed.formatNational(),
     countryCallingCode: parsed.countryCallingCode, country: parsed.country || null,
     countryCallingRegion: parsed.country || 'non-geographic or undetermined',
-    possible: parsed.isPossible(), valid: parsed.isValid(), numberType: parsed.getType() || 'unknown',
+    possible, valid: parsed.isValid(), numberType: parsed.getType() || 'unknown',
     metadataSource: 'libphonenumber-js/max (Google libphonenumber numbering-plan metadata)',
     checkedAt, limitations: LIMITATIONS
   };
@@ -44,10 +45,11 @@ export function inspectPhoneNumber(input, defaultCountry = 'NG') {
     ...record,
     providerResult: normalizeProviderResult({
       providerId: 'libphonenumber-js',
-      outcome: 'success',
-      records: [record],
+      outcome: possible ? 'success' : 'unavailable',
+      records: possible ? [record] : [],
       retrievedAt: checkedAt,
       freshness: 'unknown',
+      errors: possible ? [] : [{ code: 'NUMBER_NOT_PARSEABLE', message: 'Numbering metadata could not identify a possible number for this input.', retryable: false }],
       limitations: LIMITATIONS
     })
   };
