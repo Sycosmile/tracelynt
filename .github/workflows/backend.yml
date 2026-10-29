@@ -8,12 +8,14 @@ on:
       - "compose.yaml"
       - "frontend/**"
       - ".github/workflows/backend.yml"
+      - ".github/workflows/codeql.yml"
   pull_request:
     paths:
       - "backend/**"
       - "compose.yaml"
       - "frontend/**"
       - ".github/workflows/backend.yml"
+      - ".github/workflows/codeql.yml"
 
 concurrency:
   group: backend-checks-${{ github.ref }}
