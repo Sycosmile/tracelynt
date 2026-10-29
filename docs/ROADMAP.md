@@ -67,7 +67,7 @@ Exit criteria: reports remain traceable and do not overstate evidence.
 ## Phase 5 — operational readiness
 
 - [ ] Complete threat-model and independent security review.
-- [ ] Add dependency, secret, and static analysis to CI.
+- [x] Add dependency auditing, secret scanning, and CodeQL static analysis to CI.
 - [ ] Exercise backup restoration and backup expiry.
 - [ ] Document incident response and provider outage procedures.
 - [ ] Complete privacy impact assessment and jurisdiction-specific legal review.
