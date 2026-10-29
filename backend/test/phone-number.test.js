@@ -10,7 +10,11 @@ test('normalizes a Nigerian local number with maintained numbering metadata', ()
   assert.equal(typeof result.possible, 'boolean');
   assert.equal(typeof result.valid, 'boolean');
   assert.ok(result.checkedAt);
-  assert.match(result.metadataSource, /libphonenumber-js\/max/);
+  assert.match(result.metadataSource, /libphonenumber-js\\/max/);
+  assert.equal(result.providerResult.providerId, 'libphonenumber-js');
+  assert.equal(result.providerResult.outcome, 'success');
+  assert.equal(result.providerResult.records[0].e164, result.e164);
+  assert.equal(result.providerResult.retrievedAt, result.checkedAt);
 });
 
 test('parses international numbers and reports their country when identifiable', () => {
@@ -18,12 +22,15 @@ test('parses international numbers and reports their country when identifiable',
   assert.equal(result.e164, '+12025550123');
   assert.equal(result.countryCallingCode, '1');
   assert.equal(result.country, 'US');
+  assert.equal(result.providerResult.outcome, 'success');
 });
 
 test('does not label malformed input as a valid number', () => {
   const result = inspectPhoneNumber('123');
   assert.equal(result.valid, false);
   assert.equal(result.possible, false);
+  assert.equal(result.providerResult.outcome, 'unavailable');
+  assert.equal(result.providerResult.errors[0].code, 'NUMBER_NOT_PARSEABLE');
 });
 
 test('rejects URLs, letters, empty input, and oversized values', () => {
@@ -34,4 +41,5 @@ test('states that format validity is not identity or subscriber verification', (
   const result = inspectPhoneNumber('+234 801 234 5678');
   assert.ok(result.limitations.some(item => /particular person/.test(item)));
   assert.ok(result.limitations.some(item => /subscriber/.test(item)));
+  assert.ok(result.providerResult.limitations.length > 0);
 });
