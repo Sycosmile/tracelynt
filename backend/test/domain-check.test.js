@@ -109,3 +109,62 @@ test('distinguishes a missing DNS name from a record type with no records', asyn
   assert.equal(result.providerResults[0].errors[0].code, 'DNS_NAME_NOT_FOUND');
   assert.equal(result.providerResults[1].outcome, 'no_records');
 });
+
+test('rejects additional special-use IPv4 and IPv6 ranges used in SSRF attempts', () => {
+  for (const address of [
+    '0.1.2.3',
+    '100.127.255.255',
+    '192.0.0.8',
+    '192.0.2.255',
+    '198.19.255.255',
+    '198.51.100.255',
+    '203.0.113.255',
+    '255.255.255.255',
+    '::',
+    '::ffff:8.8.8.8',
+    '2001:db8:ffff::1',
+    '2001:20::1',
+    '2002:0808:0808::1',
+    '3fff:0fff:ffff::1',
+    '2001:4860:4860::8888%eth0'
+  ]) assert.equal(isPublicIp(address), false, address);
+});
+
+test('blocks TLS when public IPv4 coexists with a special-use IPv6 answer', async () => {
+  const resolver = {
+    resolve4: async () => ['8.8.8.8'],
+    resolve6: async () => ['fe80::1'],
+    resolveMx: async () => [],
+    resolveTxt: async () => []
+  };
+  let tlsCalled = false;
+  await assert.rejects(inspectDomain('example.com', {
+    resolver,
+    tlsCheck: async () => {
+      tlsCalled = true;
+      return { status: 'ok' };
+    }
+  }), /non-public or special-use/);
+  assert.equal(tlsCalled, false);
+});
+
+test('does not attempt TLS when DNS has no public IPv4 address', async () => {
+  const resolver = {
+    resolve4: async () => [],
+    resolve6: async () => ['2606:4700:4700::1111'],
+    resolveMx: async () => [],
+    resolveTxt: async () => []
+  };
+  let tlsCalled = false;
+  const result = await inspectDomain('example.com', {
+    resolver,
+    tlsCheck: async () => {
+      tlsCalled = true;
+      return { status: 'ok' };
+    }
+  });
+  assert.equal(tlsCalled, false);
+  assert.equal(result.checks.tls.status, 'skipped');
+  assert.equal(result.providerResults[4].outcome, 'unavailable');
+});
+
