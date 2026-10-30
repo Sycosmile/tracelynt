@@ -236,12 +236,17 @@ export async function routeCaseRequest({ method, pathname, body, userId, domainI
           await audit(client, userId, 'create_relationship', 'case', caseId, 'denied');
           return notFound();
         }
+        const evidenceOwned = await client.query(
+          'SELECT id FROM evidence_items WHERE case_id = $1 AND id = ANY($2::uuid[])',
+          [caseId, [sourceId, targetId]]
+        );
+        if (evidenceOwned.rowCount !== 2) return notFound();
         const result = await client.query(
           'INSERT INTO case_evidence_relationships (id, case_id, source_evidence_id, target_evidence_id, relationship_type, note, created_by_user_id) VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT (case_id, source_evidence_id, target_evidence_id, relationship_type) DO NOTHING RETURNING id, source_evidence_id AS "sourceEvidenceId", target_evidence_id AS "targetEvidenceId", relationship_type AS "relationshipType", note, created_at AS "createdAt"',
           [randomUUID(), caseId, sourceId, targetId, relationshipType, note, userId]
         );
         if (result.rowCount !== 1) return { status: 409, body: { error: 'RELATIONSHIP_EXISTS' } };
-        await audit(client, userId, 'create_relationship', 'evidence', result.rows[0].id);
+        await audit(client, userId, 'create_relationship', 'case', caseId);
         return { status: 201, body: { relationship: result.rows[0] } };
       });
     }
