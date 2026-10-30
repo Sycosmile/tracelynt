@@ -147,10 +147,8 @@ export async function routeCaseRequest({ method, pathname, body, userId, domainI
     const reportItem = pathname.match(/^\/api\/cases\/([0-9a-f-]+)\/reports\/([0-9a-f-]+)$/i);
     const evidenceItem = pathname.match(/^\/api\/cases\/([0-9a-f-]+)\/evidence\/([0-9a-f-]+)$/i);
     const caseItem = pathname.match(/^\/api\/cases\/([0-9a-f-]+)$/i);
-    if (!caseItem && !domainImport && !timeline && !evidenceList && !reportList && !evidenceItem && !reportItem && !reportExport) return null;
-    const caseId = (caseItem || domainImport || timeline || evidenceList || reportList || evidenceItem || reportItem || reportExport)[1];
-    if (!caseItem && !domainImport && !observationImport && !evidenceList && !reportList && !evidenceItem && !reportItem && !reportExport) return null;
-    const caseId = (caseItem || domainImport || observationImport || evidenceList || reportList || evidenceItem || reportItem || reportExport)[1];
+    if (!caseItem && !domainImport && !observationImport && !timeline && !evidenceList && !reportList && !evidenceItem && !reportItem && !reportExport) return null;
+    const caseId = (caseItem || domainImport || observationImport || timeline || evidenceList || reportList || evidenceItem || reportItem || reportExport)[1];
     if (!UUID.test(caseId)) return notFound();
 
 
@@ -219,6 +217,9 @@ export async function routeCaseRequest({ method, pathname, body, userId, domainI
         );
         await audit(client, userId, 'read_timeline', 'case', caseId);
         return { status: 200, body: { events: result.rows } };
+      });
+    }
+
     if (observationImport && method === 'POST') {
       if (!body || typeof body !== 'object' || Array.isArray(body) || !Array.isArray(body.observations) ||
           body.observations.length < 1 || body.observations.length > 100) {
