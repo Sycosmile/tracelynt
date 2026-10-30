@@ -14,7 +14,7 @@ test('normalized observations import only into an owned matching open case', { s
     subject: { type: 'domain', value: 'example.com' },
     claim: 'Synthetic DNS observation for integration testing.',
     category: 'provider_data',
-    source: { name: 'Synthetic DNS provider', url: 'https://provider.example.com/records', providerId: 'synthetic-dns' },
+    source: { name: 'Synthetic DNS provider', url: 'https://dns.google/resolve', providerId: 'synthetic-dns' },
     retrievedAt: '2026-10-29T10:00:00.000Z',
     observedAt: '2026-10-29T09:55:00.000Z',
     sourcePublishedAt: null,
