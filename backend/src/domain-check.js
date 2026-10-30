@@ -90,15 +90,27 @@ export function isPublicIp(address) {
   return false;
 }
 
-async function query(run) {
+async function query(run, timeoutMs = 3000) {
+  let timeout;
   try {
-    const records = await run();
+    const records = await Promise.race([
+      Promise.resolve().then(run),
+      new Promise((_, reject) => {
+        timeout = setTimeout(() => {
+          const error = new Error('DNS lookup exceeded its time limit.');
+          error.code = 'DNS_TIMEOUT';
+          reject(error);
+        }, timeoutMs);
+      })
+    ]);
     return { status: records.length ? 'ok' : 'no_records', records };
   } catch (error) {
     const code = typeof error?.code === 'string' ? error.code : 'DNS_ERROR';
     if (code === 'ENODATA') return { status: 'no_records', records: [] };
     if (code === 'ENOTFOUND') return { status: 'error', records: [], error: 'DNS_NAME_NOT_FOUND' };
     return { status: 'error', records: [], error: code };
+  } finally {
+    if (timeout) clearTimeout(timeout);
   }
 }
 
@@ -163,11 +175,13 @@ export async function inspectDomain(input, dependencies = {}) {
   const domain = normalizeDomain(input);
   const resolver = dependencies.resolver || dns;
   const tlsCheck = dependencies.tlsCheck || getTlsCertificate;
+  const dnsTimeoutMs = Number.isInteger(dependencies.dnsTimeoutMs) && dependencies.dnsTimeoutMs >= 50 && dependencies.dnsTimeoutMs <= 30000
+    ? dependencies.dnsTimeoutMs : 3000;
   const [a, aaaa, mx, txt] = await Promise.all([
-    query(() => resolver.resolve4(domain)),
-    query(() => resolver.resolve6(domain)),
-    query(() => resolver.resolveMx(domain)),
-    query(() => resolver.resolveTxt(domain))
+    query(() => resolver.resolve4(domain), dnsTimeoutMs),
+    query(() => resolver.resolve6(domain), dnsTimeoutMs),
+    query(() => resolver.resolveMx(domain), dnsTimeoutMs),
+    query(() => resolver.resolveTxt(domain), dnsTimeoutMs)
   ]);
   const addresses = [...a.records, ...aaaa.records];
   if (addresses.some(address => !isPublicIp(address))) {
@@ -216,5 +230,10 @@ export async function inspectDomain(input, dependencies = {}) {
     providerResult('dns-txt', checks.dns.txt, retrievedAt, limitations),
     providerResult('tls-certificate', checks.tls, retrievedAt, limitations)
   ];
-  return { domain, retrievedAt, checks, observations, limitations, providerResults };
+  const usableProviderResults = providerResults.filter(result => ['success', 'no_records', 'stale'].includes(result.outcome));
+  const failedProviderResults = providerResults.filter(result => ['unavailable', 'error', 'rate_limited'].includes(result.outcome));
+  const overallOutcome = usableProviderResults.length && failedProviderResults.length
+    ? 'partial'
+    : usableProviderResults.length ? 'success' : 'unavailable';
+  return { domain, retrievedAt, checks, observations, limitations, providerResults, overallOutcome };
 }
