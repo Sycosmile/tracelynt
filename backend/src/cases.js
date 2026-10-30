@@ -139,6 +139,7 @@ export async function routeCaseRequest({ method, pathname, body, userId, domainI
     }
 
     const domainImport = pathname.match(/^\/api\/cases\/([0-9a-f-]+)\/import-domain-observations$/i);
+    const timeline = pathname.match(/^\/api\/cases\/([0-9a-f-]+)\/timeline$/i);
     const observationImport = pathname.match(/^\/api\/cases\/([0-9a-f-]+)\/import-observations$/i);
     const evidenceList = pathname.match(/^\/api\/cases\/([0-9a-f-]+)\/evidence$/i);
     const reportList = pathname.match(/^\/api\/cases\/([0-9a-f-]+)\/reports$/i);
@@ -146,8 +147,8 @@ export async function routeCaseRequest({ method, pathname, body, userId, domainI
     const reportItem = pathname.match(/^\/api\/cases\/([0-9a-f-]+)\/reports\/([0-9a-f-]+)$/i);
     const evidenceItem = pathname.match(/^\/api\/cases\/([0-9a-f-]+)\/evidence\/([0-9a-f-]+)$/i);
     const caseItem = pathname.match(/^\/api\/cases\/([0-9a-f-]+)$/i);
-    if (!caseItem && !domainImport && !observationImport && !evidenceList && !reportList && !evidenceItem && !reportItem && !reportExport) return null;
-    const caseId = (caseItem || domainImport || observationImport || evidenceList || reportList || evidenceItem || reportItem || reportExport)[1];
+    if (!caseItem && !domainImport && !observationImport && !timeline && !evidenceList && !reportList && !evidenceItem && !reportItem && !reportExport) return null;
+    const caseId = (caseItem || domainImport || observationImport || timeline || evidenceList || reportList || evidenceItem || reportItem || reportExport)[1];
     if (!UUID.test(caseId)) return notFound();
 
 
@@ -197,6 +198,25 @@ export async function routeCaseRequest({ method, pathname, body, userId, domainI
         await client.query('UPDATE cases SET updated_at = now() WHERE id = $1', [caseId]);
         await audit(client, userId, 'import_domain_observations', 'case', caseId);
         return { status: 201, body: { domain: inspection.domain, retrievedAt: inspection.retrievedAt, importedCount: imported.length, evidence: imported, limitations: inspection.limitations } };
+      });
+    }
+
+    if (timeline && method === 'GET') {
+      return await transact(async (client) => {
+        const owned = await client.query(
+          "SELECT id FROM cases WHERE id = $1 AND owner_user_id = $2 AND status <> 'deletion_pending'",
+          [caseId, userId]
+        );
+        if (owned.rowCount !== 1) {
+          await audit(client, userId, 'read_timeline', 'case', caseId, 'denied');
+          return notFound();
+        }
+        const result = await client.query(
+          "SELECT ae.id AS \"eventId\", ae.action AS \"eventType\", ae.resource_type AS \"resourceType\", ae.resource_id AS \"resourceId\", ae.occurred_at AS \"occurredAt\", ae.outcome FROM audit_events ae WHERE ae.action IN ('create', 'import', 'import_domain_observations', 'import_observations', 'update', 'archive', 'delete_request', 'create_relationship', 'export', 'purge') AND ((ae.resource_type = 'case' AND ae.resource_id = $1) OR (ae.resource_type = 'evidence' AND ae.resource_id IN (SELECT id FROM evidence_items WHERE case_id = $1)) OR (ae.resource_type IN ('report', 'export') AND ae.resource_id IN (SELECT id FROM report_versions WHERE case_id = $1))) ORDER BY ae.occurred_at ASC, ae.id ASC LIMIT 500",
+          [caseId]
+        );
+        await audit(client, userId, 'read_timeline', 'case', caseId);
+        return { status: 200, body: { events: result.rows } };
       });
     }
 
