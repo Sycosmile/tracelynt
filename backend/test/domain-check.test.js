@@ -168,3 +168,34 @@ test('does not attempt TLS when DNS has no public IPv4 address', async () => {
   assert.equal(result.providerResults[4].outcome, 'unavailable');
 });
 
+
+
+test('bounds DNS resolver latency and preserves other provider results', async () => {
+  const resolver = {
+    resolve4: async () => ['8.8.8.8'],
+    resolve6: async () => new Promise(() => {}),
+    resolveMx: async () => [{ exchange: 'mail.example.com', priority: 10 }],
+    resolveTxt: async () => []
+  };
+  const result = await inspectDomain('example.com', {
+    resolver, dnsTimeoutMs: 50,
+    tlsCheck: async () => ({ status: 'ok', authorized: true })
+  });
+  assert.equal(result.checks.dns.ipv6.status, 'error');
+  assert.equal(result.checks.dns.ipv6.error, 'DNS_TIMEOUT');
+  assert.equal(result.checks.dns.ipv4.records[0], '8.8.8.8');
+  assert.equal(result.checks.dns.mx.status, 'ok');
+  assert.equal(result.overallOutcome, 'partial');
+  assert.equal(result.providerResults[1].outcome, 'unavailable');
+});
+
+test('uses the safe default DNS timeout for out-of-range configuration', async () => {
+  const resolver = {
+    resolve4: async () => ['8.8.8.8'], resolve6: async () => [],
+    resolveMx: async () => [], resolveTxt: async () => []
+  };
+  const result = await inspectDomain('example.com', {
+    resolver, dnsTimeoutMs: 1, tlsCheck: async () => ({ status: 'ok' })
+  });
+  assert.equal(result.checks.dns.ipv4.status, 'ok');
+});
