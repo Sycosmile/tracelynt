@@ -101,7 +101,6 @@ async function query(run, timeoutMs = 3000) {
           error.code = 'DNS_TIMEOUT';
           reject(error);
         }, timeoutMs);
-        timeout.unref?.();
       })
     ]);
     return { status: records.length ? 'ok' : 'no_records', records };
