@@ -92,3 +92,16 @@ test('server sessions reject expired, revoked, and suspended-account sessions', 
     await pool.query('DELETE FROM users WHERE id = ANY($1::uuid[])', [users]);
   }
 });
+
+
+test('rejects credentials and unsupported schemes in the configured application origin', () => {
+  const original = process.env.APP_BASE_URL;
+  try {
+    process.env.APP_BASE_URL = 'http://user:pass@127.0.0.1:8000';
+    assert.throws(() => assertCsrf({ headers: {} }), /APP_BASE_URL must not contain credentials/);
+    process.env.APP_BASE_URL = 'ftp://127.0.0.1:8000';
+    assert.throws(() => assertCsrf({ headers: {} }), /APP_BASE_URL must use HTTP or HTTPS/);
+  } finally {
+    process.env.APP_BASE_URL = original;
+  }
+});

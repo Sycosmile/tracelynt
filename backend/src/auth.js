@@ -23,6 +23,12 @@ function requiredEnv(name) {
 
 function baseUrl() {
   const url = new URL(requiredEnv('APP_BASE_URL'));
+  if (url.username || url.password) {
+    throw new Error('APP_BASE_URL must not contain credentials.');
+  }
+  if (!['http:', 'https:'].includes(url.protocol)) {
+    throw new Error('APP_BASE_URL must use HTTP or HTTPS.');
+  }
   if (process.env.NODE_ENV === 'production' && url.protocol !== 'https:') {
     throw new Error('APP_BASE_URL must use HTTPS in production.');
   }
