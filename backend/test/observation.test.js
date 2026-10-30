@@ -83,3 +83,23 @@ test('rejects malformed limitation lists and excessive limits', () => {
   assert.throws(() => normalizeObservation({ ...valid, limitations: Array(21).fill('limit') }), /Limitations must be an array/);
   assert.throws(() => normalizeObservation({ ...valid, limitations: [''] }), /Limitation 1 is missing/);
 });
+
+
+test('rejects alternate IPv4 literal spellings after URL parsing', () => {
+  for (const url of [
+    'https://0177.0.0.1/private',
+    'https://2130706433/private',
+    'https://0x7f000001/private',
+    'https://0x7f.1/private'
+  ]) {
+    assert.throws(() => normalizeObservation({ ...valid, source: { name: 'Untrusted source', url } }), /named public hostname/, url);
+  }
+});
+
+test('removes URL fragments but preserves query parameters in source references', () => {
+  const result = normalizeObservation({
+    ...valid,
+    source: { name: 'Public source', url: 'https://Example.COM/path?ref=public#private-fragment' }
+  });
+  assert.equal(result.source.url, 'https://example.com/path?ref=public');
+});
