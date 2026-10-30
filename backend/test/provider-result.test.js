@@ -56,8 +56,9 @@ test('validates bounded arrays and optional source publication time', () => {
 
 
 test('rejects non-object provider records', () => {
-  for (const record of [null, 'record', 42, true, []]) {
-    assert.throws(() => normalizeProviderResult({ ...base, records: [record] }), /Record 1 must be an object/);
+  for (const record of [null, 42, true, []]) {
+    assert.throws(() => normalizeProviderResult({ ...base, records: [record] }), /Record 1 must be a string or object/);
   }
   assert.deepEqual(normalizeProviderResult({ ...base, records: [{ id: 'record-1' }] }).records, [{ id: 'record-1' }]);
+  assert.deepEqual(normalizeProviderResult({ ...base, records: ['203.0.113.10'] }).records, ['203.0.113.10']);
 });
