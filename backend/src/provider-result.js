@@ -37,6 +37,12 @@ export function normalizeProviderResult(input) {
   if (!Array.isArray(records) || records.length > 1000) {
     throw new TypeError('Records must be an array with at most 1000 items.');
   }
+  for (const [index, record] of records.entries()) {
+    if (!record || typeof record !== 'object' || Array.isArray(record)) {
+      throw new TypeError('Record ' + (index + 1) + ' must be an object.');
+    }
+  }
+
   if (outcome === 'no_records' && records.length !== 0) {
     throw new TypeError('A no_records result cannot contain records.');
   }
