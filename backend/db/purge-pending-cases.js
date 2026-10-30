@@ -2,7 +2,8 @@ import { randomUUID } from 'node:crypto';
 import { getPool, closePool } from '../src/db.js';
 
 async function main() {
-  if (process.env.CONFIRM_PURGE_PENDING_CASES !== 'YES') {
+  const dryRun = process.env.PURGE_DRY_RUN === 'true';
+  if (!dryRun && process.env.CONFIRM_PURGE_PENDING_CASES !== 'YES') {
     throw new Error('Refusing to purge. Set CONFIRM_PURGE_PENDING_CASES=YES after reviewing the retention policy.');
   }
   const ownerIds = process.env.PURGE_OWNER_IDS
@@ -14,7 +15,23 @@ async function main() {
   const pool = getPool();
   const client = await pool.connect();
   try {
-    await client.query('BEGIN');
+    await client.query(dryRun ? 'BEGIN READ ONLY' : 'BEGIN');
+    if (dryRun) {
+      const pendingCases = ownerIds
+        ? await client.query("SELECT count(*)::int AS count FROM cases WHERE status = 'deletion_pending' AND owner_user_id = ANY($1::uuid[])", [ownerIds])
+        : await client.query("SELECT count(*)::int AS count FROM cases WHERE status = 'deletion_pending'");
+      const pendingAccounts = await client.query(
+        "SELECT count(*)::int AS count FROM users u WHERE u.status = 'deletion_pending' AND ($1::uuid[] IS NULL OR u.id = ANY($1::uuid[])) AND NOT EXISTS (SELECT 1 FROM cases c WHERE c.owner_user_id = u.id)",
+        [ownerIds]
+      );
+      const expiredSessions = ownerIds
+        ? await client.query('SELECT count(*)::int AS count FROM sessions WHERE user_id = ANY($1::uuid[]) AND (expires_at <= now() OR revoked_at IS NOT NULL)', [ownerIds])
+        : await client.query('SELECT count(*)::int AS count FROM sessions WHERE expires_at <= now() OR revoked_at IS NOT NULL');
+      const expiredTransactions = ownerIds ? { rows: [{ count: null }] } : await client.query('SELECT count(*)::int AS count FROM oidc_login_transactions WHERE expires_at <= now()');
+      await client.query('COMMIT');
+      process.stdout.write(JSON.stringify({ dryRun: true, pendingCases: pendingCases.rows[0].count, pendingAccounts: pendingAccounts.rows[0].count, expiredOrRevokedSessions: expiredSessions.rows[0].count, expiredLoginTransactions: expiredTransactions.rows[0].count }) + '\n');
+      return;
+    }
     const pending = ownerIds
       ? await client.query("DELETE FROM cases WHERE status = 'deletion_pending' AND owner_user_id = ANY($1::uuid[]) RETURNING id", [ownerIds])
       : await client.query("DELETE FROM cases WHERE status = 'deletion_pending' RETURNING id");

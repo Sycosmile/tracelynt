@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { getPool } from './db.js';
 import net from 'node:net';
 import { inspectDomain, isPublicIp } from './domain-check.js';
+import { normalizeObservation } from './observation.js';
 
 const SUBJECT_TYPES = new Set(['business', 'domain', 'phone_number', 'other']);
 const REVIEW_STATES = new Set(['unreviewed', 'corroborated', 'disputed', 'unavailable', 'retracted']);
@@ -139,6 +140,7 @@ export async function routeCaseRequest({ method, pathname, body, userId, domainI
 
     const domainImport = pathname.match(/^\/api\/cases\/([0-9a-f-]+)\/import-domain-observations$/i);
     const timeline = pathname.match(/^\/api\/cases\/([0-9a-f-]+)\/timeline$/i);
+    const observationImport = pathname.match(/^\/api\/cases\/([0-9a-f-]+)\/import-observations$/i);
     const evidenceList = pathname.match(/^\/api\/cases\/([0-9a-f-]+)\/evidence$/i);
     const reportList = pathname.match(/^\/api\/cases\/([0-9a-f-]+)\/reports$/i);
     const reportExport = pathname.match(/^\/api\/cases\/([0-9a-f-]+)\/reports\/([0-9a-f-]+)\/export$/i);
@@ -147,6 +149,8 @@ export async function routeCaseRequest({ method, pathname, body, userId, domainI
     const caseItem = pathname.match(/^\/api\/cases\/([0-9a-f-]+)$/i);
     if (!caseItem && !domainImport && !timeline && !evidenceList && !reportList && !evidenceItem && !reportItem && !reportExport) return null;
     const caseId = (caseItem || domainImport || timeline || evidenceList || reportList || evidenceItem || reportItem || reportExport)[1];
+    if (!caseItem && !domainImport && !observationImport && !evidenceList && !reportList && !evidenceItem && !reportItem && !reportExport) return null;
+    const caseId = (caseItem || domainImport || observationImport || evidenceList || reportList || evidenceItem || reportItem || reportExport)[1];
     if (!UUID.test(caseId)) return notFound();
 
 
@@ -215,6 +219,45 @@ export async function routeCaseRequest({ method, pathname, body, userId, domainI
         );
         await audit(client, userId, 'read_timeline', 'case', caseId);
         return { status: 200, body: { events: result.rows } };
+    if (observationImport && method === 'POST') {
+      if (!body || typeof body !== 'object' || Array.isArray(body) || !Array.isArray(body.observations) ||
+          body.observations.length < 1 || body.observations.length > 100) {
+        return invalid('Provide between 1 and 100 normalized observations.');
+      }
+      const observations = body.observations.map((item) => normalizeObservation(item));
+      return await transact(async (client) => {
+        const owned = await client.query(
+          "SELECT id, subject_type AS \"subjectType\", subject_label AS \"subjectLabel\" FROM cases WHERE id = $1 AND owner_user_id = $2 AND status = 'open' FOR UPDATE",
+          [caseId, userId]
+        );
+        if (owned.rowCount !== 1) {
+          await audit(client, userId, 'import_observations', 'case', caseId, 'denied');
+          return notFound();
+        }
+        const subject = owned.rows[0];
+        const subjectMismatch = observations.some((observation) => {
+          const expectedType = observation.subject.type === 'organization' ? 'business' : observation.subject.type;
+          return expectedType !== subject.subjectType ||
+            observation.subject.value.trim().toLowerCase() !== subject.subjectLabel.trim().toLowerCase();
+        });
+        if (subjectMismatch) return invalid('Every observation subject must match this case subject.');
+        const imported = [];
+        for (const observation of observations) {
+          const id = randomUUID();
+          const limitations = observation.limitations.join(' ');
+          const result = await client.query(
+            'INSERT INTO evidence_items (id, case_id, creator_user_id, claim, category, review_state, source_name, source_url, observed_at, limitations, source_published_at, freshness_state, freshness_as_of, provenance_kind, provenance_actor_id, source_provider_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING id, claim, category, review_state AS "reviewState", source_name AS "sourceName", source_url AS "sourceUrl", observed_at AS "observedAt", source_published_at AS "sourcePublishedAt", created_at AS "createdAt", limitations, freshness_state AS "freshnessState", freshness_as_of AS "freshnessAsOf", provenance_kind AS "provenanceKind", provenance_actor_id AS "provenanceActorId", source_provider_id AS "sourceProviderId"',
+            [id, caseId, userId, observation.claim, observation.category, observation.reviewState,
+              observation.source.name, observation.source.url, observation.observedAt, limitations,
+              observation.sourcePublishedAt, observation.freshness.state, observation.freshness.asOf,
+              observation.provenance.kind, observation.provenance.actorId, observation.source.providerId]
+          );
+          imported.push(result.rows[0]);
+          await audit(client, userId, 'import', 'evidence', id);
+        }
+        await client.query('UPDATE cases SET updated_at = now() WHERE id = $1', [caseId]);
+        await audit(client, userId, 'import_observations', 'case', caseId);
+        return { status: 201, body: { importedCount: imported.length, evidence: imported } };
       });
     }
 
