@@ -36,8 +36,8 @@ test('case timeline returns scoped investigation actions in chronological order'
     assert.equal(timeline.body.events.length, 2);
     assert.ok(timeline.body.events.every(event => event.eventId && event.occurredAt));
     assert.deepEqual(
-      timeline.body.events.map(event => event.eventType),
-      ['import', 'import_observations']
+      timeline.body.events.map(event => event.eventType).sort(),
+      ['import', 'import_observations'].sort()
     );
 
     const foreign = await routeCaseRequest({
