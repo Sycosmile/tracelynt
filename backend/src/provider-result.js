@@ -38,8 +38,8 @@ export function normalizeProviderResult(input) {
     throw new TypeError('Records must be an array with at most 1000 items.');
   }
   for (const [index, record] of records.entries()) {
-    if (!record || typeof record !== 'object' || Array.isArray(record)) {
-      throw new TypeError('Record ' + (index + 1) + ' must be an object.');
+    if (record === null || (typeof record !== 'string' && (typeof record !== 'object' || Array.isArray(record)))) {
+      throw new TypeError('Record ' + (index + 1) + ' must be a string or object.');
     }
   }
 
