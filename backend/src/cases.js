@@ -9,6 +9,7 @@ const REVIEW_STATES = new Set(['unreviewed', 'corroborated', 'disputed', 'unavai
 const EVIDENCE_CATEGORIES = new Set(['public_record', 'direct_observation', 'provider_data', 'user_report', 'analyst_assessment']);
 const FRESHNESS_STATES = new Set(['current', 'stale', 'unknown', 'not_applicable']);
 const PROVENANCE_KINDS = new Set(['provider', 'analyst', 'system', 'user']);
+const RELATIONSHIP_TYPES = new Set(['supports', 'contradicts', 'corroborates', 'derived_from', 'same_subject', 'related_to']);
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function invalid(message) {
@@ -139,6 +140,7 @@ export async function routeCaseRequest({ method, pathname, body, userId, domainI
     }
 
     const domainImport = pathname.match(/^\/api\/cases\/([0-9a-f-]+)\/import-domain-observations$/i);
+    const relationshipList = pathname.match(/^\/api\/cases\/([0-9a-f-]+)\/relationships$/i);
     const timeline = pathname.match(/^\/api\/cases\/([0-9a-f-]+)\/timeline$/i);
     const observationImport = pathname.match(/^\/api\/cases\/([0-9a-f-]+)\/import-observations$/i);
     const evidenceList = pathname.match(/^\/api\/cases\/([0-9a-f-]+)\/evidence$/i);
@@ -147,8 +149,8 @@ export async function routeCaseRequest({ method, pathname, body, userId, domainI
     const reportItem = pathname.match(/^\/api\/cases\/([0-9a-f-]+)\/reports\/([0-9a-f-]+)$/i);
     const evidenceItem = pathname.match(/^\/api\/cases\/([0-9a-f-]+)\/evidence\/([0-9a-f-]+)$/i);
     const caseItem = pathname.match(/^\/api\/cases\/([0-9a-f-]+)$/i);
-    if (!caseItem && !domainImport && !observationImport && !timeline && !evidenceList && !reportList && !evidenceItem && !reportItem && !reportExport) return null;
-    const caseId = (caseItem || domainImport || observationImport || timeline || evidenceList || reportList || evidenceItem || reportItem || reportExport)[1];
+    if (!caseItem && !domainImport && !observationImport && !relationshipList && !timeline && !evidenceList && !reportList && !evidenceItem && !reportItem && !reportExport) return null;
+    const caseId = (caseItem || domainImport || observationImport || relationshipList || timeline || evidenceList || reportList || evidenceItem || reportItem || reportExport)[1];
     if (!UUID.test(caseId)) return notFound();
 
 
@@ -201,25 +203,6 @@ export async function routeCaseRequest({ method, pathname, body, userId, domainI
       });
     }
 
-    if (timeline && method === 'GET') {
-      return await transact(async (client) => {
-        const owned = await client.query(
-          "SELECT id FROM cases WHERE id = $1 AND owner_user_id = $2 AND status <> 'deletion_pending'",
-          [caseId, userId]
-        );
-        if (owned.rowCount !== 1) {
-          await audit(client, userId, 'read_timeline', 'case', caseId, 'denied');
-          return notFound();
-        }
-        const result = await client.query(
-          "SELECT ae.id AS \"eventId\", ae.action AS \"eventType\", ae.resource_type AS \"resourceType\", ae.resource_id AS \"resourceId\", ae.occurred_at AS \"occurredAt\", ae.outcome FROM audit_events ae WHERE ae.action IN ('create', 'import', 'import_domain_observations', 'import_observations', 'update', 'archive', 'delete_request', 'create_relationship', 'export', 'purge') AND ((ae.resource_type = 'case' AND ae.resource_id = $1) OR (ae.resource_type = 'evidence' AND ae.resource_id IN (SELECT id FROM evidence_items WHERE case_id = $1)) OR (ae.resource_type IN ('report', 'export') AND ae.resource_id IN (SELECT id FROM report_versions WHERE case_id = $1))) ORDER BY ae.occurred_at ASC, ae.id ASC LIMIT 500",
-          [caseId]
-        );
-        await audit(client, userId, 'read_timeline', 'case', caseId);
-        return { status: 200, body: { events: result.rows } };
-      });
-    }
-
     if (observationImport && method === 'POST') {
       if (!body || typeof body !== 'object' || Array.isArray(body) || !Array.isArray(body.observations) ||
           body.observations.length < 1 || body.observations.length > 100) {
@@ -259,6 +242,45 @@ export async function routeCaseRequest({ method, pathname, body, userId, domainI
         await client.query('UPDATE cases SET updated_at = now() WHERE id = $1', [caseId]);
         await audit(client, userId, 'import_observations', 'case', caseId);
         return { status: 201, body: { importedCount: imported.length, evidence: imported } };
+      });
+    }
+
+
+    if (relationshipList && method === 'GET') {
+      return await transact(async (client) => {
+        const owned = await client.query("SELECT id FROM cases WHERE id = $1 AND owner_user_id = $2 AND status <> 'deletion_pending'", [caseId, userId]);
+        if (owned.rowCount !== 1) { await audit(client, userId, 'list', 'evidence', caseId, 'denied'); return notFound(); }
+        const result = await client.query('SELECT id, source_evidence_id AS "sourceEvidenceId", target_evidence_id AS "targetEvidenceId", relationship_type AS "relationshipType", note, created_at AS "createdAt" FROM case_evidence_relationships WHERE case_id = $1 ORDER BY created_at ASC, id ASC LIMIT 500', [caseId]);
+        await audit(client, userId, 'list_relationships', 'case', caseId);
+        return { status: 200, body: { relationships: result.rows } };
+      });
+    }
+    if (relationshipList && method === 'POST') {
+      if (!body || typeof body !== 'object' || Array.isArray(body)) return invalid('Request body must be an object.');
+      const sourceId = text(body.sourceEvidenceId, 'Source evidence ID', 36);
+      const targetId = text(body.targetEvidenceId, 'Target evidence ID', 36);
+      const relationshipType = text(body.relationshipType, 'Relationship type', 40);
+      const note = text(body.note ?? '', 'Relationship note', 1000, false);
+      if (!UUID.test(sourceId) || !UUID.test(targetId) || sourceId === targetId) return invalid('Two different valid evidence IDs are required.');
+      if (!RELATIONSHIP_TYPES.has(relationshipType)) return invalid('Relationship type is not supported.');
+      return await transact(async (client) => {
+        const owned = await client.query("SELECT id FROM cases WHERE id = $1 AND owner_user_id = $2 AND status = 'open' FOR UPDATE", [caseId, userId]);
+        if (owned.rowCount !== 1) { await audit(client, userId, 'create_relationship', 'case', caseId, 'denied'); return notFound(); }
+        const evidenceOwned = await client.query('SELECT id FROM evidence_items WHERE case_id = $1 AND id = ANY($2::uuid[])', [caseId, [sourceId, targetId]]);
+        if (evidenceOwned.rowCount !== 2) return notFound();
+        const result = await client.query('INSERT INTO case_evidence_relationships (id, case_id, source_evidence_id, target_evidence_id, relationship_type, note, created_by_user_id) VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT (case_id, source_evidence_id, target_evidence_id, relationship_type) DO NOTHING RETURNING id, source_evidence_id AS "sourceEvidenceId", target_evidence_id AS "targetEvidenceId", relationship_type AS "relationshipType", note, created_at AS "createdAt"', [randomUUID(), caseId, sourceId, targetId, relationshipType, note, userId]);
+        if (result.rowCount !== 1) return { status: 409, body: { error: 'RELATIONSHIP_EXISTS' } };
+        await audit(client, userId, 'create_relationship', 'case', caseId);
+        return { status: 201, body: { relationship: result.rows[0] } };
+      });
+    }
+    if (timeline && method === 'GET') {
+      return await transact(async (client) => {
+        const owned = await client.query("SELECT id FROM cases WHERE id = $1 AND owner_user_id = $2 AND status <> 'deletion_pending'", [caseId, userId]);
+        if (owned.rowCount !== 1) { await audit(client, userId, 'read_timeline', 'case', caseId, 'denied'); return notFound(); }
+        const result = await client.query("SELECT ae.id AS \"eventId\", ae.action AS \"eventType\", ae.resource_type AS \"resourceType\", ae.resource_id AS \"resourceId\", ae.occurred_at AS \"occurredAt\", ae.outcome FROM audit_events ae WHERE ae.action IN ('create', 'import', 'import_domain_observations', 'import_observations', 'update', 'archive', 'delete_request', 'create_relationship', 'export', 'purge') AND ((ae.resource_type = 'case' AND ae.resource_id = $1) OR (ae.resource_type = 'evidence' AND ae.resource_id IN (SELECT id FROM evidence_items WHERE case_id = $1)) OR (ae.resource_type IN ('report', 'export') AND ae.resource_id IN (SELECT id FROM report_versions WHERE case_id = $1))) ORDER BY ae.occurred_at ASC, ae.id ASC LIMIT 500", [caseId]);
+        await audit(client, userId, 'read_timeline', 'case', caseId);
+        return { status: 200, body: { events: result.rows } };
       });
     }
 
@@ -490,6 +512,10 @@ export async function routeCaseRequest({ method, pathname, body, userId, domainI
           [caseId]
         );
         if (evidence.rowCount < 1) return invalid('Add at least one evidence item before generating a report.');
+        const relationships = await client.query(
+          'SELECT source_evidence_id, target_evidence_id, relationship_type, note, created_at FROM case_evidence_relationships WHERE case_id = $1 ORDER BY created_at ASC, id ASC LIMIT 500',
+          [caseId]
+        );
         const subject = owned.rows[0];
         const reportData = {
           schemaVersion: '1.0',
@@ -497,6 +523,7 @@ export async function routeCaseRequest({ method, pathname, body, userId, domainI
           case: { id: caseId, title: subject.title, purpose: subject.purpose },
           subject: { type: subject.subject_type, name: subject.subject_label },
           generatedAt: new Date().toISOString(),
+          relationships: relationships.rows.map((item) => ({ sourceEvidenceId: item.source_evidence_id, targetEvidenceId: item.target_evidence_id, relationshipType: item.relationship_type, note: item.note, createdAt: item.created_at })),
           findings: evidence.rows.map((item, index) => ({
             id: item.id,
             order: index + 1,
