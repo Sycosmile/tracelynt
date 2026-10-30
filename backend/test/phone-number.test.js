@@ -44,3 +44,21 @@ test('states that format validity is not identity or subscriber verification', (
   assert.ok(result.limitations.some(item => /subscriber/.test(item)));
   assert.ok(result.providerResult.limitations.length > 0);
 });
+
+
+test('accepts the documented input-length boundary after trimming whitespace', () => {
+  const input = ' '.repeat(149) + '08012345678';
+  assert.equal(input.length, 160);
+  const result = inspectPhoneNumber(input);
+  assert.equal(result.e164, '+2348012345678');
+});
+
+test('normalizes common formatting variants to the same E.164 number', () => {
+  const variants = [
+    '08012345678',
+    '080 1234 5678',
+    '+234 801 234 5678',
+    '+234-801-234-5678'
+  ];
+  for (const value of variants) assert.equal(inspectPhoneNumber(value).e164, '+2348012345678', value);
+});
