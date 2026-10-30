@@ -139,6 +139,7 @@ export async function routeCaseRequest({ method, pathname, body, userId, domainI
     }
 
     const domainImport = pathname.match(/^\/api\/cases\/([0-9a-f-]+)\/import-domain-observations$/i);
+    const observationImport = pathname.match(/^\/api\/cases\/([0-9a-f-]+)\/import-observations$/i);
     const evidenceList = pathname.match(/^\/api\/cases\/([0-9a-f-]+)\/evidence$/i);
     const reportList = pathname.match(/^\/api\/cases\/([0-9a-f-]+)\/reports$/i);
     const reportExport = pathname.match(/^\/api\/cases\/([0-9a-f-]+)\/reports\/([0-9a-f-]+)\/export$/i);
