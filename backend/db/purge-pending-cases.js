@@ -29,7 +29,7 @@ async function main() {
         : await client.query('SELECT count(*)::int AS count FROM sessions WHERE expires_at <= now() OR revoked_at IS NOT NULL');
       const expiredTransactions = ownerIds ? { rows: [{ count: null }] } : await client.query('SELECT count(*)::int AS count FROM oidc_login_transactions WHERE expires_at <= now()');
       await client.query('COMMIT');
-      process.stdout.write(JSON.stringify({ dryRun: true, pendingCases: pendingCases.rows[0].count, pendingAccounts: pendingAccounts.rows[0].count, expiredOrRevokedSessions: expiredSessions.rows[0].count, expiredLoginTransactions: expiredTransactions.rows[0].count }) + '\\n');
+      process.stdout.write(JSON.stringify({ dryRun: true, pendingCases: pendingCases.rows[0].count, pendingAccounts: pendingAccounts.rows[0].count, expiredOrRevokedSessions: expiredSessions.rows[0].count, expiredLoginTransactions: expiredTransactions.rows[0].count }) + '\n');
       return;
     }
     const pending = ownerIds
