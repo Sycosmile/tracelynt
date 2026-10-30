@@ -152,3 +152,19 @@ test('enforces JSON content type and body limits while returning baseline securi
   assert.equal(oversized.status, 413);
   assert.equal((await oversized.json()).error, 'DOMAIN_CHECK_FAILED');
 });
+
+
+test('does not serve path traversal or unlisted static-file requests', async () => {
+  const base = baseUrl();
+  for (const path of [
+    '/.env',
+    '/backend/package.json',
+    '/app.js/../.env',
+    '/%2e%2e/%2e%2e/etc/passwd',
+    '/..%2f..%2f.env'
+  ]) {
+    const response = await fetch(base + path);
+    assert.equal(response.status, 404, path);
+    assert.equal((await response.json()).error, 'NOT_FOUND', path);
+  }
+});
