@@ -39,6 +39,8 @@ From backend, after installing dependencies and setting DATABASE_URL:
 
 By default, the command processes every pending case/account in the configured database. To scope a run to selected synthetic/test owners, set PURGE_OWNER_IDS to a comma-separated list of UUIDs. Do not run the unscoped command against a database until the retention policy and target environment have been verified.
 
+See [Retention and deletion operations](../../docs/RETENTION_OPERATIONS.md) for the read-only preview and the production deletion limitations.
+
 ## Schema overview
 
 - users: unique OIDC issuer/subject pair and account status.
