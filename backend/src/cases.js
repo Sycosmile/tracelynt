@@ -215,13 +215,14 @@ export async function routeCaseRequest({ method, pathname, body, userId, domainI
           return notFound();
         }
         const subject = owned.rows[0];
+        const subjectMismatch = observations.some((observation) => {
+          const expectedType = observation.subject.type === 'organization' ? 'business' : observation.subject.type;
+          return expectedType !== subject.subjectType ||
+            observation.subject.value.trim().toLowerCase() !== subject.subjectLabel.trim().toLowerCase();
+        });
+        if (subjectMismatch) return invalid('Every observation subject must match this case subject.');
         const imported = [];
         for (const observation of observations) {
-          const expectedType = observation.subject.type === 'organization' ? 'business' : observation.subject.type;
-          if (expectedType !== subject.subjectType ||
-              observation.subject.value.trim().toLowerCase() !== subject.subjectLabel.trim().toLowerCase()) {
-            return invalid('Every observation subject must match this case subject.');
-          }
           const id = randomUUID();
           const limitations = observation.limitations.join(' ');
           const result = await client.query(
