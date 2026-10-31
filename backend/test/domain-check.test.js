@@ -199,3 +199,35 @@ test('uses the safe default DNS timeout for out-of-range configuration', async (
   });
   assert.equal(result.checks.dns.ipv4.status, 'ok');
 });
+
+
+test('rejects additional IPv4 special-use boundaries and IPv6 transition or translation addresses', () => {
+  for (const address of [
+    '100.64.0.0', '100.127.255.255', '192.0.0.0', '192.0.0.255',
+    '192.88.99.1', '192.175.48.1', '198.18.0.0', '198.19.255.255',
+    '224.0.0.0', '239.255.255.255', '240.0.0.0', '255.255.255.255',
+    '::', '::1', '::ffff:0:0', '64:ff9b::7f00:1', '100::1',
+    '2001::1', '2001:2::1', '2001:10::1', '2001:20::1',
+    '2002::1', '3fff:0fff:ffff::1', 'fe80::1%eth0'
+  ]) assert.equal(isPublicIp(address), false, address);
+});
+
+test('rejects a mixed public and special-use DNS answer set before any TLS connection', async () => {
+  for (const answers of [
+    { v4: ['8.8.8.8'], v6: ['::ffff:127.0.0.1'] },
+    { v4: ['1.1.1.1', '169.254.169.254'], v6: [] },
+    { v4: [], v6: ['2606:4700:4700::1111', 'fc00::1'] }
+  ]) {
+    let tlsCalled = false;
+    await assert.rejects(inspectDomain('example.com', {
+      resolver: {
+        resolve4: async () => answers.v4,
+        resolve6: async () => answers.v6,
+        resolveMx: async () => [],
+        resolveTxt: async () => []
+      },
+      tlsCheck: async () => { tlsCalled = true; return { status: 'ok' }; }
+    }), /non-public or special-use/);
+    assert.equal(tlsCalled, false);
+  }
+});
