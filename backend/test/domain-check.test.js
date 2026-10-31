@@ -208,7 +208,7 @@ test('rejects additional IPv4 special-use boundaries and IPv6 transition or tran
     '224.0.0.0', '239.255.255.255', '240.0.0.0', '255.255.255.255',
     '::', '::1', '::ffff:0:0', '64:ff9b::7f00:1', '100::1',
     '2001::1', '2001:2::1', '2001:10::1', '2001:20::1',
-    '2002::1', '3fff:1000::1', 'fe80::1%eth0'
+    '2002::1', '3fff:0fff:ffff::1', 'fe80::1%eth0'
   ]) assert.equal(isPublicIp(address), false, address);
 });
 
