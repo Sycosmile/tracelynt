@@ -3,8 +3,10 @@
 ## Current state
 The domain inspector validates DNS answers and connects to a validated public IPv4 address for TLS. Application checks are necessary but insufficient: DNS rebinding, resolver behavior, route changes and deployment-level network access require defense in depth.
 
-## Hosting decision required
-Concrete enforcement depends on the hosting target, container runtime, DNS resolver and network policy system. Do not add guessed firewall rules or claim isolation without testing the actual deployment.
+## Hosting decision: Railway prototype
+Railway is selected as the initial prototype target. Its private networking and static outbound IP features do not provide a configurable outbound deny policy. A separate Railway service is not, by itself, an isolated egress boundary. See [the Railway deployment boundary](../deployment/RAILWAY_SECURITY_BOUNDARY.md).
+
+Concrete enforcement still depends on the inspection runtime, DNS resolver and network policy system. Do not add guessed firewall rules or claim isolation without testing the actual deployment. Domain inspection must remain unavailable to untrusted public traffic until the release gate below is satisfied.
 
 ## Required controls
 - Run inspection in a dedicated network boundary with no route to private application, database, control-plane or metadata networks.
