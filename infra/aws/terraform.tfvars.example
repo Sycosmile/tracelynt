@@ -1,0 +1,7 @@
+# Copy to terraform.tfvars only after selecting a region and AZ.
+# Never commit terraform.tfvars or credentials.
+aws_region        = "REPLACE_WITH_APPROVED_REGION"
+availability_zone = "REPLACE_WITH_AZ_IN_THAT_REGION"
+environment       = "dev"
+vpc_cidr          = "10.40.0.0/16"
+worker_subnet_cidr = "10.40.10.0/24"
