@@ -8,6 +8,11 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 test('private case API enforces owner isolation and versions evidence reports', { skip: !process.env.DATABASE_URL }, async () => {
+  // This integration test injects a synthetic inspector; explicitly enable that test-only path.
+  const previousInspectionEnabled = process.env.DOMAIN_INSPECTION_ENABLED;
+  const previousEgressAttestation = process.env.DOMAIN_INSPECTION_EGRESS_VERIFIED;
+  process.env.DOMAIN_INSPECTION_ENABLED = 'true';
+  process.env.DOMAIN_INSPECTION_EGRESS_VERIFIED = 'true';
   const pool = getPool();
   const userA = randomUUID();
   const userB = randomUUID();
@@ -246,6 +251,10 @@ test('private case API enforces owner isolation and versions evidence reports', 
     );
     assert.equal(retainedAccountAudit.rows[0].count, 1);
   } finally {
+    if (previousInspectionEnabled === undefined) delete process.env.DOMAIN_INSPECTION_ENABLED;
+    else process.env.DOMAIN_INSPECTION_ENABLED = previousInspectionEnabled;
+    if (previousEgressAttestation === undefined) delete process.env.DOMAIN_INSPECTION_EGRESS_VERIFIED;
+    else process.env.DOMAIN_INSPECTION_EGRESS_VERIFIED = previousEgressAttestation;
     const ids = [userA, userB];
     const resourceIds = caseId ? [caseId, userB] : [userB];
     await pool.query('DELETE FROM cases WHERE owner_user_id = ANY($1::uuid[])', [ids]);
