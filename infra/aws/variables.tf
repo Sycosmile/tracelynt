@@ -26,7 +26,7 @@ variable "vpc_cidr" {
   default     = "10.40.0.0/16"
 
   validation {
-    condition     = can(cidrhost(var.vpc_cidr, 0))
+    condition     = can(cidrnetmask(var.vpc_cidr))
     error_message = "vpc_cidr must be a valid IPv4 CIDR block."
   }
 }
@@ -37,7 +37,7 @@ variable "worker_subnet_cidr" {
   default     = "10.40.10.0/24"
 
   validation {
-    condition     = can(cidrhost(var.worker_subnet_cidr, 0))
+    condition     = can(cidrnetmask(var.worker_subnet_cidr))
     error_message = "worker_subnet_cidr must be a valid IPv4 CIDR block."
   }
 }
