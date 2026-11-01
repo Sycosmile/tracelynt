@@ -5,6 +5,7 @@ import { inspectPhoneNumber } from './phone-number.js';
 import { createEvidenceReport } from './report.js';
 import { appOrigin, assertCsrf, beginLogin, clearAuthCookies, completeLogin, currentUser, getCsrfToken, loginBinding, logout, requestAccountDeletion } from './auth.js';
 import { routeCaseRequest } from './cases.js';
+import { isDomainInspectionEnabled } from './feature-flags.js';
 
 const HOST = process.env.HOST || '127.0.0.1';
 const PORT = Number.parseInt(process.env.PORT || '8000', 10);
@@ -189,6 +190,9 @@ export const server = http.createServer(async (request, response) => {
   }
   const isDomainCheck = request.method === 'POST' && pathname === '/api/domain-check';
   const isReport = request.method === 'POST' && pathname === '/api/report';
+  if (isDomainCheck && !isDomainInspectionEnabled()) {
+    return send(response, 503, { error: 'DOMAIN_INSPECTION_DISABLED', message: 'Domain inspection is disabled until the deployed egress security boundary has been independently verified.' });
+  }
   if (!isDomainCheck && !isReport) return send(response, 404, { error: 'NOT_FOUND' });
   const address = request.socket.remoteAddress || 'unknown';
   if (!allowedByRateLimit(address)) return send(response, 429, { error: 'RATE_LIMITED' });

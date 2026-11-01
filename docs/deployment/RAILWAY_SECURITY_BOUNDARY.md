@@ -21,7 +21,9 @@ Railway's private networking is useful for service-to-service communication, but
 
 Railway may host the web/API prototype and private workspace only after the applicable authentication, authorization, CSRF, database, secret-management, and retention controls have been reviewed.
 
-Domain inspection remains disabled. Deploying the API and a separate worker as two Railway services does not, by itself, satisfy the egress isolation requirement. Do not rely on a separate service name or private hostname as a security boundary.
+Domain inspection remains disabled. The backend requires both `DOMAIN_INSPECTION_ENABLED=true` and `DOMAIN_INSPECTION_EGRESS_VERIFIED=true` before either public domain-inspection route or the case observation-import route can execute. Both are false in `.env.example`.
+
+The second variable is an operator attestation, not technical proof or an automated control. Set it only after the deployed inspection runtime has passed independent network-level egress tests. Do not set either variable for the Railway prototype. Deploying the API and a separate worker as two Railway services does not, by itself, satisfy the egress isolation requirement. Do not rely on a separate service name or private hostname as a security boundary.
 
 ### Stage 2 — domain inspection behind an enforced egress boundary
 

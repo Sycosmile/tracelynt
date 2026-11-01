@@ -3,6 +3,7 @@ import { getPool } from './db.js';
 import net from 'node:net';
 import { inspectDomain, isPublicIp } from './domain-check.js';
 import { normalizeObservation } from './observation.js';
+import { isDomainInspectionEnabled } from './feature-flags.js';
 
 const SUBJECT_TYPES = new Set(['business', 'domain', 'phone_number', 'other']);
 const REVIEW_STATES = new Set(['unreviewed', 'corroborated', 'disputed', 'unavailable', 'retracted']);
@@ -155,6 +156,9 @@ export async function routeCaseRequest({ method, pathname, body, userId, domainI
 
 
     if (domainImport && method === 'POST') {
+      if (!isDomainInspectionEnabled()) {
+        return { status: 503, body: { error: 'DOMAIN_INSPECTION_DISABLED', message: 'Domain inspection is disabled until the deployed egress security boundary has been independently verified.' } };
+      }
       const requestedDomain = text(body?.domain, 'Domain', 253).toLowerCase().replace(/\.$/, '');
       const owned = await transact(async (client) => {
         const result = await client.query(
