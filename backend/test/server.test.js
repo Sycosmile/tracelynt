@@ -2,6 +2,8 @@ import test, { before, after } from 'node:test';
 import assert from 'node:assert/strict';
 
 process.env.NODE_ENV = 'test';
+process.env.DOMAIN_INSPECTION_ENABLED = 'true';
+process.env.DOMAIN_INSPECTION_EGRESS_VERIFIED = 'true';
 const { server } = await import('../src/server.js');
 
 before(async () => {
@@ -21,6 +23,20 @@ function baseUrl() {
   const address = server.address();
   return 'http://127.0.0.1:' + address.port;
 }
+
+test('fails closed when domain inspection is not explicitly enabled and attested', async () => {
+  process.env.DOMAIN_INSPECTION_ENABLED = 'false';
+  process.env.DOMAIN_INSPECTION_EGRESS_VERIFIED = 'false';
+  const response = await fetch(baseUrl() + '/api/domain-check', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ domain: 'example.com' })
+  });
+  assert.equal(response.status, 503);
+  assert.equal((await response.json()).error, 'DOMAIN_INSPECTION_DISABLED');
+  process.env.DOMAIN_INSPECTION_ENABLED = 'true';
+  process.env.DOMAIN_INSPECTION_EGRESS_VERIFIED = 'true';
+});
 
 test('serves the interface and allowlisted static assets from one origin', async () => {
   const base = baseUrl();
