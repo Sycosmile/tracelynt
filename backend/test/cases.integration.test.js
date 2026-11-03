@@ -263,6 +263,84 @@ test('private case API enforces owner isolation and versions evidence reports', 
     });
     assert.equal(foreignReports.status, 404);
 
+    for (let index = 0; index < 197; index += 1) {
+      const extra = await routeCaseRequest({
+        method: 'POST', pathname: '/api/cases/' + caseId + '/evidence', userId: userA,
+        body: {
+          claim: 'Synthetic overflow fixture ' + index,
+          category: 'user_report',
+          sourceName: 'Automated test',
+          sourceUrl: '',
+          limitations: 'Synthetic only.'
+        }
+      });
+      assert.equal(extra.status, 201);
+    }
+    const evidenceOverflow = await routeCaseRequest({
+      method: 'POST', pathname: '/api/cases/' + caseId + '/reports', userId: userA, body: {}
+    });
+    assert.equal(evidenceOverflow.status, 409);
+    assert.equal(evidenceOverflow.body.error, 'REPORT_SNAPSHOT_LIMIT_EXCEEDED');
+    assert.equal(evidenceOverflow.body.resource, 'evidence');
+    assert.equal(evidenceOverflow.body.limit, 200);
+    assert.equal(evidenceOverflow.body.observedAtLeast, 201);
+
+    const relationshipCase = await routeCaseRequest({
+      method: 'POST', pathname: '/api/cases', userId: userA,
+      body: {
+        title: 'Synthetic relationship-limit case',
+        purpose: 'Automated report boundary test only',
+        subjectType: 'domain',
+        subjectLabel: 'relationships.example'
+      }
+    });
+    assert.equal(relationshipCase.status, 201);
+    const relationshipCaseId = relationshipCase.body.case.id;
+    const relationshipEvidence = [];
+    for (let index = 0; index < 14; index += 1) {
+      const item = await routeCaseRequest({
+        method: 'POST', pathname: '/api/cases/' + relationshipCaseId + '/evidence', userId: userA,
+        body: {
+          claim: 'Synthetic relationship fixture ' + index,
+          category: 'user_report',
+          sourceName: 'Automated test',
+          sourceUrl: '',
+          limitations: 'Synthetic only.'
+        }
+      });
+      assert.equal(item.status, 201);
+      relationshipEvidence.push(item.body.evidence.id);
+    }
+    const relationshipTypes = ['supports', 'contradicts', 'corroborates', 'derived_from', 'same_subject', 'related_to'];
+    let relationshipCount = 0;
+    for (const relationshipType of relationshipTypes) {
+      for (const sourceId of relationshipEvidence) {
+        for (const targetId of relationshipEvidence) {
+          if (sourceId === targetId || relationshipCount === 501) continue;
+          const linked = await routeCaseRequest({
+            method: 'POST',
+            pathname: '/api/cases/' + relationshipCaseId + '/relationships',
+            userId: userA,
+            body: { sourceEvidenceId: sourceId, targetEvidenceId: targetId, relationshipType }
+          });
+          assert.equal(linked.status, 201);
+          relationshipCount += 1;
+          if (relationshipCount === 501) break;
+        }
+        if (relationshipCount === 501) break;
+      }
+      if (relationshipCount === 501) break;
+    }
+    assert.equal(relationshipCount, 501);
+    const relationshipOverflow = await routeCaseRequest({
+      method: 'POST', pathname: '/api/cases/' + relationshipCaseId + '/reports', userId: userA, body: {}
+    });
+    assert.equal(relationshipOverflow.status, 409);
+    assert.equal(relationshipOverflow.body.error, 'REPORT_SNAPSHOT_LIMIT_EXCEEDED');
+    assert.equal(relationshipOverflow.body.resource, 'relationships');
+    assert.equal(relationshipOverflow.body.limit, 500);
+    assert.equal(relationshipOverflow.body.observedAtLeast, 501);
+
     const unconfirmedDelete = await routeCaseRequest({
       method: 'DELETE', pathname: '/api/cases/' + caseId, userId: userA, body: {}
     });
