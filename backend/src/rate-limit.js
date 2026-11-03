@@ -5,10 +5,11 @@ const localWindows = new Map();
 let cleanupCounter = 0;
 
 function localDecision(key, limit, windowMs, now) {
-  if (localWindows.size > 5000) {
+  if (localWindows.size >= 5000) {
     for (const [entry, value] of localWindows) {
       if (now >= value.expiresAt) localWindows.delete(entry);
     }
+    if (localWindows.size >= 5000) localWindows.delete(localWindows.keys().next().value);
   }
   const current = localWindows.get(key);
   if (!current || now >= current.expiresAt) {
@@ -35,10 +36,10 @@ export async function consumeRateLimit({ key, limit, windowMs = 60_000, now = Da
   const seconds = Math.ceil(windowMs / 1000);
   const result = await query(
     `WITH clock AS (
-       SELECT to_timestamp(floor(extract(epoch FROM clock_timestamp()) / $2) * $2) AS starts_at
+       SELECT to_timestamp(floor(extract(epoch FROM clock_timestamp()) / $2::numeric) * $2::numeric) AS starts_at
      )
      INSERT INTO rate_limit_buckets (key_hash, window_started_at, request_count, expires_at)
-     SELECT $1, starts_at, 1, starts_at + ($2 * interval '1 second') FROM clock
+     SELECT $1, starts_at, 1, starts_at + ($2::integer * interval '1 second') FROM clock
      ON CONFLICT (key_hash) DO UPDATE
        SET window_started_at = EXCLUDED.window_started_at,
            request_count = CASE
