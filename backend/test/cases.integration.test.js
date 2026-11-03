@@ -263,6 +263,28 @@ test('private case API enforces owner isolation and versions evidence reports', 
     });
     assert.equal(foreignReports.status, 404);
 
+    for (let index = 0; index < 197; index += 1) {
+      const extra = await routeCaseRequest({
+        method: 'POST', pathname: '/api/cases/' + caseId + '/evidence', userId: userA,
+        body: {
+          claim: 'Synthetic overflow fixture ' + index,
+          category: 'user_report',
+          sourceName: 'Automated test',
+          sourceUrl: '',
+          limitations: 'Synthetic only.'
+        }
+      });
+      assert.equal(extra.status, 201);
+    }
+    const evidenceOverflow = await routeCaseRequest({
+      method: 'POST', pathname: '/api/cases/' + caseId + '/reports', userId: userA, body: {}
+    });
+    assert.equal(evidenceOverflow.status, 409);
+    assert.equal(evidenceOverflow.body.error, 'REPORT_SNAPSHOT_LIMIT_EXCEEDED');
+    assert.equal(evidenceOverflow.body.resource, 'evidence');
+    assert.equal(evidenceOverflow.body.limit, 200);
+    assert.equal(evidenceOverflow.body.observedAtLeast, 201);
+
     const unconfirmedDelete = await routeCaseRequest({
       method: 'DELETE', pathname: '/api/cases/' + caseId, userId: userA, body: {}
     });
