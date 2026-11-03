@@ -198,6 +198,17 @@ test('private case API enforces owner isolation and versions evidence reports', 
     assert.deepEqual(legacyFinding.provenance, { kind: 'user', actorId: null });
     assert.equal(legacyFinding.sourceProviderId, null);
     const reportId = report.body.report.id;
+    await assert.rejects(
+      pool.query(
+        "UPDATE report_versions SET report_data = jsonb_set(report_data, '{interpretation,statement}', '\"tampered\"'::jsonb) WHERE id = $1",
+        [reportId]
+      ),
+      (error) => error.code === '55000' && /immutable/i.test(error.message)
+    );
+    await assert.rejects(
+      pool.query('UPDATE report_versions SET version_number = version_number + 1 WHERE id = $1', [reportId]),
+      (error) => error.code === '55000' && /immutable/i.test(error.message)
+    );
     const ownReportRead = await routeCaseRequest({
       method: 'GET', pathname: '/api/cases/' + caseId + '/reports/' + reportId, userId: userA
     });
