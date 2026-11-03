@@ -231,3 +231,43 @@ test('rejects a mixed public and special-use DNS answer set before any TLS conne
     assert.equal(tlsCalled, false);
   }
 });
+
+
+test('pins TLS to the validated DNS address without resolving the domain again', async () => {
+  let resolve4Calls = 0;
+  let tlsArguments;
+  const resolver = {
+    resolve4: async () => {
+      resolve4Calls += 1;
+      // Simulate a rebinding answer if the hostname were resolved a second time.
+      return resolve4Calls === 1 ? ['8.8.8.8'] : ['169.254.169.254'];
+    },
+    resolve6: async () => [],
+    resolveMx: async () => [],
+    resolveTxt: async () => []
+  };
+
+  const result = await inspectDomain('example.com', {
+    resolver,
+    tlsCheck: async (address, serverName) => {
+      tlsArguments = { address, serverName };
+      return { status: 'ok', authorized: true };
+    }
+  });
+
+  assert.equal(resolve4Calls, 1);
+  assert.deepEqual(tlsArguments, { address: '8.8.8.8', serverName: 'example.com' });
+  assert.equal(result.checks.tls.authorized, true);
+});
+
+test('rejects additional IPv4-mapped and translated IPv6 representations', () => {
+  for (const address of [
+    '::ffff:0:808:808',
+    '::ffff:808:808',
+    '64:ff9b::808:808',
+    '64:ff9b:1::808:808',
+    '100::808:808'
+  ]) {
+    assert.equal(isPublicIp(address), false, address);
+  }
+});
