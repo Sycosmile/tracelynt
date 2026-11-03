@@ -72,17 +72,20 @@ function validateEvidence(body) {
   return {
     claim: text(body.claim, 'Claim', 5000),
     category,
-    reviewState,
+    reviewState: 'unreviewed',
     sourceName: text(body.sourceName, 'Source name', 300),
     sourceUrl,
-    limitations: text(body.limitations ?? '', 'Limitations', 5000, false),
+    limitations: (() => {
+      const warning = ' User-submitted provenance, review state, and freshness are unverified.';
+      return text(body.limitations ?? '', 'Limitations', 5000, false).slice(0, 5000 - warning.length) + warning;
+    })(),
     observedAt: body.observedAt == null || body.observedAt === '' ? null : validDate(body.observedAt),
     sourcePublishedAt: body.sourcePublishedAt == null || body.sourcePublishedAt === '' ? null : validDate(body.sourcePublishedAt),
-    freshnessState,
-    freshnessAsOf: body.freshnessAsOf == null || body.freshnessAsOf === '' ? null : validDate(body.freshnessAsOf),
-    provenanceKind,
-    provenanceActorId: body.provenanceActorId == null || body.provenanceActorId === '' ? null : text(body.provenanceActorId, 'Provenance actor ID', 100),
-    sourceProviderId: body.sourceProviderId == null || body.sourceProviderId === '' ? null : text(body.sourceProviderId, 'Source provider ID', 100)
+    freshnessState: 'unknown',
+    freshnessAsOf: null,
+    provenanceKind: 'user',
+    provenanceActorId: null,
+    sourceProviderId: null
   };
 }
 
@@ -232,13 +235,15 @@ export async function routeCaseRequest({ method, pathname, body, userId, domainI
         const imported = [];
         for (const observation of observations) {
           const id = randomUUID();
-          const limitations = observation.limitations.join(' ');
+          const warning = ' Client-supplied provenance, review state, and freshness are unverified.';
+          const limitations = observation.limitations.join(' ').slice(0, 5000 - warning.length) + warning;
+          // This endpoint accepts user-submitted JSON, not authenticated provider output.
+          // Never promote caller-controlled metadata into trusted provenance or review state.
           const result = await client.query(
             'INSERT INTO evidence_items (id, case_id, creator_user_id, claim, category, review_state, source_name, source_url, observed_at, limitations, source_published_at, freshness_state, freshness_as_of, provenance_kind, provenance_actor_id, source_provider_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING id, claim, category, review_state AS "reviewState", source_name AS "sourceName", source_url AS "sourceUrl", observed_at AS "observedAt", source_published_at AS "sourcePublishedAt", created_at AS "createdAt", limitations, freshness_state AS "freshnessState", freshness_as_of AS "freshnessAsOf", provenance_kind AS "provenanceKind", provenance_actor_id AS "provenanceActorId", source_provider_id AS "sourceProviderId"',
-            [id, caseId, userId, observation.claim, observation.category, observation.reviewState,
+            [id, caseId, userId, observation.claim, observation.category, 'unreviewed',
               observation.source.name, observation.source.url, observation.observedAt, limitations,
-              observation.sourcePublishedAt, observation.freshness.state, observation.freshness.asOf,
-              observation.provenance.kind, observation.provenance.actorId, observation.source.providerId]
+              observation.sourcePublishedAt, 'unknown', null, 'user', null, null]
           );
           imported.push(result.rows[0]);
           await audit(client, userId, 'import', 'evidence', id);
