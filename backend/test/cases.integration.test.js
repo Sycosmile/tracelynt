@@ -111,20 +111,23 @@ test('private case API enforces owner isolation and versions evidence reports', 
         limitations: 'Not real evidence.',
         observedAt: '2026-10-27T10:00:00.000Z',
         sourcePublishedAt: '2026-10-26T09:00:00.000Z',
-        freshnessState: 'stale',
+        reviewState: 'corroborated',
+        freshnessState: 'current',
         freshnessAsOf: '2026-10-27T11:00:00.000Z',
-        provenanceKind: 'provider',
-        provenanceActorId: 'test-analyst-17',
-        sourceProviderId: 'test-public-registry'
+        provenanceKind: 'system',
+        provenanceActorId: 'forged-analyst-17',
+        sourceProviderId: 'forged-provider'
       }
     });
     assert.equal(evidenceCreated.status, 201);
     assert.equal(new Date(evidenceCreated.body.evidence.sourcePublishedAt).toISOString(), '2026-10-26T09:00:00.000Z');
-    assert.equal(evidenceCreated.body.evidence.freshnessState, 'stale');
-    assert.equal(new Date(evidenceCreated.body.evidence.freshnessAsOf).toISOString(), '2026-10-27T11:00:00.000Z');
-    assert.equal(evidenceCreated.body.evidence.provenanceKind, 'provider');
-    assert.equal(evidenceCreated.body.evidence.provenanceActorId, 'test-analyst-17');
-    assert.equal(evidenceCreated.body.evidence.sourceProviderId, 'test-public-registry');
+    assert.equal(evidenceCreated.body.evidence.reviewState, 'unreviewed');
+    assert.equal(evidenceCreated.body.evidence.freshnessState, 'unknown');
+    assert.equal(evidenceCreated.body.evidence.freshnessAsOf, null);
+    assert.equal(evidenceCreated.body.evidence.provenanceKind, 'user');
+    assert.equal(evidenceCreated.body.evidence.provenanceActorId, null);
+    assert.equal(evidenceCreated.body.evidence.sourceProviderId, null);
+    assert.match(evidenceCreated.body.evidence.limitations, /are unverified/);
 
     const subjectChangeAfterEvidence = await routeCaseRequest({
       method: 'PATCH', pathname: '/api/cases/' + caseId, userId: userA,
@@ -164,11 +167,12 @@ test('private case API enforces owner isolation and versions evidence reports', 
     const persistedEvidence = ownEvidence.body.evidence.find((item) => item.id === evidenceCreated.body.evidence.id);
     assert.ok(persistedEvidence);
     assert.equal(new Date(persistedEvidence.sourcePublishedAt).toISOString(), '2026-10-26T09:00:00.000Z');
-    assert.equal(persistedEvidence.freshnessState, 'stale');
-    assert.equal(new Date(persistedEvidence.freshnessAsOf).toISOString(), '2026-10-27T11:00:00.000Z');
-    assert.equal(persistedEvidence.provenanceKind, 'provider');
-    assert.equal(persistedEvidence.provenanceActorId, 'test-analyst-17');
-    assert.equal(persistedEvidence.sourceProviderId, 'test-public-registry');
+    assert.equal(persistedEvidence.reviewState, 'unreviewed');
+    assert.equal(persistedEvidence.freshnessState, 'unknown');
+    assert.equal(persistedEvidence.freshnessAsOf, null);
+    assert.equal(persistedEvidence.provenanceKind, 'user');
+    assert.equal(persistedEvidence.provenanceActorId, null);
+    assert.equal(persistedEvidence.sourceProviderId, null);
 
     const foreignEvidence = await routeCaseRequest({
       method: 'GET', pathname: '/api/cases/' + caseId + '/evidence', userId: userB
@@ -184,15 +188,9 @@ test('private case API enforces owner isolation and versions evidence reports', 
     const provenanceFinding = findings.find((item) => item.id === evidenceCreated.body.evidence.id);
     assert.ok(provenanceFinding);
     assert.equal(provenanceFinding.sourcePublishedAt, '2026-10-26T09:00:00.000Z');
-    assert.deepEqual(provenanceFinding.freshness, {
-      state: 'stale',
-      asOf: '2026-10-27T11:00:00.000Z'
-    });
-    assert.deepEqual(provenanceFinding.provenance, {
-      kind: 'provider',
-      actorId: 'test-analyst-17'
-    });
-    assert.equal(provenanceFinding.sourceProviderId, 'test-public-registry');
+    assert.deepEqual(provenanceFinding.freshness, { state: 'unknown', asOf: null });
+    assert.deepEqual(provenanceFinding.provenance, { kind: 'user', actorId: null });
+    assert.equal(provenanceFinding.sourceProviderId, null);
     const legacyFinding = findings.find((item) => item.id === legacyEvidence.body.evidence.id);
     assert.ok(legacyFinding);
     assert.equal(legacyFinding.sourcePublishedAt, null);
