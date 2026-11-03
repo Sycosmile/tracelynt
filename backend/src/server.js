@@ -105,6 +105,7 @@ export const server = http.createServer(async (request, response) => {
     }
   }
   if (request.method === 'GET' && pathname === '/api/session') {
+    if (!(await enforceRateLimit(response, 'auth:ip:' + (request.socket.remoteAddress || 'unknown'), 120))) return;
     try {
       const user = await currentUser(request);
       return send(response, 200, user
