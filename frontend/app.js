@@ -765,6 +765,38 @@ document.querySelector('#evidence-form').addEventListener('submit', async event 
   }
 });
 
+
+document.querySelector('#relationship-form').addEventListener('submit', async event => {
+  event.preventDefault();
+  if (!selectedCase || selectedCase.status !== 'open') return;
+  const sourceEvidenceId = document.querySelector('#relationship-source').value;
+  const targetEvidenceId = document.querySelector('#relationship-target').value;
+  if (!sourceEvidenceId || !targetEvidenceId || sourceEvidenceId === targetEvidenceId) {
+    setWorkspaceMessage('Choose two different evidence records.');
+    return;
+  }
+  const button = document.querySelector('#add-relationship');
+  button.disabled = true;
+  try {
+    await workspaceRequest('/api/cases/' + encodeURIComponent(selectedCase.id) + '/relationships', {
+      method: 'POST',
+      body: JSON.stringify({
+        sourceEvidenceId,
+        targetEvidenceId,
+        relationshipType: document.querySelector('#relationship-type').value,
+        note: document.querySelector('#relationship-note').value
+      })
+    });
+    document.querySelector('#relationship-note').value = '';
+    setWorkspaceMessage('Evidence relationship recorded and added to the case timeline.', true);
+    await Promise.all([loadCaseRelationships(selectedCase.id), loadCaseTimeline(selectedCase.id)]);
+  } catch (error) {
+    setWorkspaceMessage(error.message);
+  } finally {
+    button.disabled = selectedCase?.status !== 'open' || caseEvidenceItems.length < 2;
+  }
+});
+
 document.querySelector('#archive-case').addEventListener('click', async () => {
   if (!selectedCase) return;
   const nextStatus = selectedCase.status === 'archived' ? 'open' : 'archived';
