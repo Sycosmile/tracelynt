@@ -95,10 +95,10 @@ function validDate(value) {
   return date.toISOString();
 }
 
-async function audit(client, userId, action, resourceType, resourceId, outcome = 'success') {
+async function audit(client, userId, action, resourceType, resourceId, outcome = 'success', metadata = {}) {
   await client.query(
-    'INSERT INTO audit_events (id, actor_user_id, action, resource_type, resource_id, outcome) VALUES ($1, $2, $3, $4, $5, $6)',
-    [randomUUID(), userId, action, resourceType, resourceId, outcome]
+    'INSERT INTO audit_events (id, actor_user_id, action, resource_type, resource_id, outcome, metadata) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)',
+    [randomUUID(), userId, action, resourceType, resourceId, outcome, JSON.stringify(metadata)]
   );
 }
 
@@ -287,7 +287,7 @@ export async function routeCaseRequest({ method, pathname, body, userId, domainI
       return await transact(async (client) => {
         const owned = await client.query("SELECT id FROM cases WHERE id = $1 AND owner_user_id = $2 AND status <> 'deletion_pending'", [caseId, userId]);
         if (owned.rowCount !== 1) { await audit(client, userId, 'read_timeline', 'case', caseId, 'denied'); return notFound(); }
-        const result = await client.query("SELECT ae.id AS \"eventId\", ae.action AS \"eventType\", ae.resource_type AS \"resourceType\", ae.resource_id AS \"resourceId\", ae.occurred_at AS \"occurredAt\", ae.outcome FROM audit_events ae WHERE ae.action IN ('create', 'import', 'import_domain_observations', 'import_observations', 'update', 'archive', 'delete_request', 'create_relationship', 'export', 'purge') AND ((ae.resource_type = 'case' AND ae.resource_id = $1) OR (ae.resource_type = 'evidence' AND ae.resource_id IN (SELECT id FROM evidence_items WHERE case_id = $1)) OR (ae.resource_type IN ('report', 'export') AND ae.resource_id IN (SELECT id FROM report_versions WHERE case_id = $1))) ORDER BY ae.occurred_at ASC, ae.id ASC LIMIT 500", [caseId]);
+        const result = await client.query("SELECT ae.id AS \"eventId\", ae.action AS \"eventType\", ae.resource_type AS \"resourceType\", ae.resource_id AS \"resourceId\", ae.occurred_at AS \"occurredAt\", ae.outcome, ae.metadata FROM audit_events ae WHERE ae.action IN ('create', 'import', 'import_domain_observations', 'import_observations', 'update', 'archive', 'delete_request', 'create_relationship', 'export', 'purge') AND ((ae.resource_type = 'case' AND ae.resource_id = $1) OR (ae.resource_type = 'evidence' AND ae.resource_id IN (SELECT id FROM evidence_items WHERE case_id = $1)) OR (ae.resource_type IN ('report', 'export') AND ae.resource_id IN (SELECT id FROM report_versions WHERE case_id = $1))) ORDER BY ae.occurred_at ASC, ae.id ASC LIMIT 500", [caseId]);
         await audit(client, userId, 'read_timeline', 'case', caseId);
         return { status: 200, body: { events: result.rows } };
       });
@@ -429,12 +429,165 @@ export async function routeCaseRequest({ method, pathname, body, userId, domainI
           await audit(client, userId, 'update', 'evidence', evidenceItem[2], 'denied');
           return notFound();
         }
+        const previous = await client.query(
+          'SELECT id, review_state AS "reviewState" FROM evidence_items WHERE id = $1 AND case_id = $2 FOR UPDATE',
+          [evidenceItem[2], caseId]
+        );
+        if (previous.rowCount !== 1) {
+          await audit(client, userId, 'update', 'evidence', evidenceItem[2], 'denied');
+          return notFound();
+        }
         const values = [evidenceItem[2], caseId];
         const assignments = [];
         for (const [key, value] of Object.entries(updates)) {
           values.push(value);
           const column = { reviewState: 'review_state', correctionNote: 'correction_note', limitations: 'limitations' }[key];
-          assignments.push(column + ' = $' + values.length);
+          assignments.push(column + ' = 
+        return { status: 200, body: { evidence: result.rows[0] } };
+      });
+    }
+
+    if (reportList && method === 'GET') {
+      return await transact(async (client) => {
+        const owned = await client.query(
+          "SELECT id FROM cases WHERE id = $1 AND owner_user_id = $2 AND status <> 'deletion_pending'",
+          [caseId, userId]
+        );
+        if (owned.rowCount !== 1) {
+          await audit(client, userId, 'list', 'report', caseId, 'denied');
+          return notFound();
+        }
+        const result = await client.query(
+          'SELECT id, version_number AS "versionNumber", generated_at AS "generatedAt" FROM report_versions WHERE case_id = $1 AND deleted_at IS NULL ORDER BY version_number DESC LIMIT 100',
+          [caseId]
+        );
+        await audit(client, userId, 'list', 'report', caseId);
+        return { status: 200, body: { reports: result.rows } };
+      });
+    }
+
+    if (reportItem && method === 'GET') {
+      return await transact(async (client) => {
+        const owned = await client.query(
+          "SELECT id FROM cases WHERE id = $1 AND owner_user_id = $2 AND status <> 'deletion_pending'",
+          [caseId, userId]
+        );
+        if (owned.rowCount !== 1) {
+          await audit(client, userId, 'read', 'report', reportItem[2], 'denied');
+          return notFound();
+        }
+        const result = await client.query(
+          'SELECT id, version_number AS "versionNumber", generated_at AS "generatedAt", report_data AS "reportData" FROM report_versions WHERE id = $1 AND case_id = $2 AND deleted_at IS NULL',
+          [reportItem[2], caseId]
+        );
+        if (result.rowCount !== 1) {
+          await audit(client, userId, 'read', 'report', reportItem[2], 'denied');
+          return notFound();
+        }
+        await audit(client, userId, 'read', 'report', reportItem[2]);
+        return { status: 200, body: { report: result.rows[0] } };
+      });
+    }
+
+    if (reportExport && method === 'POST') {
+      return await transact(async (client) => {
+        const owned = await client.query(
+          "SELECT id FROM cases WHERE id = $1 AND owner_user_id = $2 AND status <> 'deletion_pending'",
+          [caseId, userId]
+        );
+        if (owned.rowCount !== 1) {
+          await audit(client, userId, 'export', 'export', reportExport[2], 'denied');
+          return notFound();
+        }
+        const result = await client.query(
+          'SELECT id, version_number AS "versionNumber", generated_at AS "generatedAt", report_data AS "reportData" FROM report_versions WHERE id = $1 AND case_id = $2 AND deleted_at IS NULL',
+          [reportExport[2], caseId]
+        );
+        if (result.rowCount !== 1) {
+          await audit(client, userId, 'export', 'export', reportExport[2], 'denied');
+          return notFound();
+        }
+        await audit(client, userId, 'export', 'export', reportExport[2]);
+        return { status: 200, body: { report: result.rows[0] } };
+      });
+    }
+
+    if (reportList && method === 'POST') {
+      return await transact(async (client) => {
+        const owned = await client.query(
+          "SELECT id, title, purpose, subject_type, subject_label FROM cases WHERE id = $1 AND owner_user_id = $2 AND status = 'open' FOR UPDATE",
+          [caseId, userId]
+        );
+        if (owned.rowCount !== 1) {
+          await audit(client, userId, 'create', 'report', caseId, 'denied');
+          return notFound();
+        }
+        const evidence = await client.query(
+          'SELECT id, claim, category, review_state, source_name, source_url, observed_at, source_published_at, created_at, limitations, correction_note, retracted_at, freshness_state, freshness_as_of, provenance_kind, provenance_actor_id, source_provider_id FROM evidence_items WHERE case_id = $1 ORDER BY created_at ASC LIMIT 200',
+          [caseId]
+        );
+        if (evidence.rowCount < 1) return invalid('Add at least one evidence item before generating a report.');
+        const relationships = await client.query(
+          'SELECT source_evidence_id, target_evidence_id, relationship_type, note, created_at FROM case_evidence_relationships WHERE case_id = $1 ORDER BY created_at ASC, id ASC LIMIT 500',
+          [caseId]
+        );
+        const subject = owned.rows[0];
+        const reportData = {
+          schemaVersion: '1.0',
+          reportType: 'case-evidence-summary',
+          case: { id: caseId, title: subject.title, purpose: subject.purpose },
+          subject: { type: subject.subject_type, name: subject.subject_label },
+          generatedAt: new Date().toISOString(),
+          relationships: relationships.rows.map((item) => ({ sourceEvidenceId: item.source_evidence_id, targetEvidenceId: item.target_evidence_id, relationshipType: item.relationship_type, note: item.note, createdAt: item.created_at })),
+          findings: evidence.rows.map((item, index) => ({
+            id: item.id,
+            order: index + 1,
+            claim: item.claim,
+            category: item.category,
+            verificationState: item.review_state,
+            source: { name: item.source_name, url: item.source_url },
+            observedAt: item.observed_at,
+            sourcePublishedAt: item.source_published_at,
+            recordedAt: item.created_at,
+            freshness: { state: item.freshness_state, asOf: item.freshness_as_of },
+            provenance: { kind: item.provenance_kind, actorId: item.provenance_actor_id },
+            sourceProviderId: item.source_provider_id,
+            limitations: item.limitations,
+            correctionNote: item.correction_note,
+            retractedAt: item.retracted_at
+          })),
+          interpretation: {
+            status: 'analyst_supplied',
+            statement: 'This report summarizes evidence entered into the case. Tracelynt has not independently verified external claims or source content.',
+            guidance: 'Review original sources, note conflicting evidence, and do not treat correlation, a single source, or an allegation as proof of identity or wrongdoing.'
+          },
+          limitations: [
+            'Evidence items are user-entered records and are not independently verified by this report generator.',
+            'Source links are recorded but not fetched. A link does not prove a claim is accurate or current.',
+            'Reports reflect evidence recorded at generation time; later corrections or retractions do not rewrite this snapshot.'
+          ]
+        };
+        const versionResult = await client.query(
+          'SELECT COALESCE(MAX(version_number), 0) + 1 AS version FROM report_versions WHERE case_id = $1',
+          [caseId]
+        );
+        const id = randomUUID();
+        const result = await client.query(
+          'INSERT INTO report_versions (id, case_id, creator_user_id, version_number, report_data) VALUES ($1, $2, $3, $4, $5::jsonb) RETURNING id, version_number AS "versionNumber", generated_at AS "generatedAt", report_data AS "reportData"',
+          [id, caseId, userId, versionResult.rows[0].version, JSON.stringify(reportData)]
+        );
+        await audit(client, userId, 'create', 'report', id);
+        return { status: 201, body: { report: result.rows[0] } };
+      });
+    }
+
+    return { status: 405, body: { error: 'METHOD_NOT_ALLOWED' } };
+  } catch (error) {
+    if (error instanceof TypeError || error instanceof RangeError) return invalid(error.message);
+    throw error;
+  }
+}
+ + values.length);
         }
         assignments.push('updated_at = now()');
         if (updates.reviewState === 'retracted') assignments.push('retracted_at = COALESCE(retracted_at, now())');
@@ -442,11 +595,12 @@ export async function routeCaseRequest({ method, pathname, body, userId, domainI
           'UPDATE evidence_items SET ' + assignments.join(', ') + ' WHERE id = $1 AND case_id = $2 RETURNING id, claim, category, review_state AS "reviewState", source_name AS "sourceName", source_url AS "sourceUrl", updated_at AS "updatedAt", limitations, correction_note AS "correctionNote", retracted_at AS "retractedAt"',
           values
         );
-        if (result.rowCount !== 1) {
-          await audit(client, userId, 'update', 'evidence', evidenceItem[2], 'denied');
-          return notFound();
+        const metadata = { changedFields: Object.keys(updates).sort() };
+        if (Object.hasOwn(updates, 'reviewState')) {
+          metadata.previousReviewState = previous.rows[0].reviewState;
+          metadata.nextReviewState = updates.reviewState;
         }
-        await audit(client, userId, 'update', 'evidence', evidenceItem[2]);
+        await audit(client, userId, 'update', 'evidence', evidenceItem[2], 'success', metadata);
         return { status: 200, body: { evidence: result.rows[0] } };
       });
     }
