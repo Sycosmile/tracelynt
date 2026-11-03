@@ -126,6 +126,19 @@ test('private case API enforces owner isolation and versions evidence reports', 
     assert.equal(evidenceCreated.body.evidence.provenanceActorId, 'test-analyst-17');
     assert.equal(evidenceCreated.body.evidence.sourceProviderId, 'test-public-registry');
 
+    const subjectChangeAfterEvidence = await routeCaseRequest({
+      method: 'PATCH', pathname: '/api/cases/' + caseId, userId: userA,
+      body: { subjectLabel: 'different.example' }
+    });
+    assert.equal(subjectChangeAfterEvidence.status, 409);
+    assert.equal(subjectChangeAfterEvidence.body.error, 'CASE_SUBJECT_LOCKED');
+
+    const unchangedSubject = await routeCaseRequest({
+      method: 'GET', pathname: '/api/cases/' + caseId, userId: userA
+    });
+    assert.equal(unchangedSubject.status, 200);
+    assert.equal(unchangedSubject.body.case.subjectLabel, 'example.com');
+
     const legacyEvidence = await routeCaseRequest({
       method: 'POST', pathname: '/api/cases/' + caseId + '/evidence', userId: userA,
       body: {
