@@ -227,30 +227,6 @@ export async function routeCaseRequest({ method, pathname, body, userId, domainI
           await audit(client, userId, 'import_observations', 'case', caseId, 'denied');
           return notFound();
         }
-        if (evidence.rowCount > MAX_REPORT_EVIDENCE) {
-          return {
-            status: 409,
-            body: {
-              error: 'REPORT_SNAPSHOT_LIMIT_EXCEEDED',
-              message: 'This case exceeds the report evidence limit. Reduce the evidence set before generating a report.',
-              limit: MAX_REPORT_EVIDENCE,
-              observedAtLeast: evidence.rowCount,
-              resource: 'evidence'
-            }
-          };
-        }
-        if (relationships.rowCount > MAX_REPORT_RELATIONSHIPS) {
-          return {
-            status: 409,
-            body: {
-              error: 'REPORT_SNAPSHOT_LIMIT_EXCEEDED',
-              message: 'This case exceeds the report relationship limit. Reduce the relationship set before generating a report.',
-              limit: MAX_REPORT_RELATIONSHIPS,
-              observedAtLeast: relationships.rowCount,
-              resource: 'relationships'
-            }
-          };
-        }
         const subject = owned.rows[0];
         const subjectMismatch = observations.some((observation) => {
           const expectedType = observation.subject.type === 'organization' ? 'business' : observation.subject.type;
@@ -285,7 +261,7 @@ export async function routeCaseRequest({ method, pathname, body, userId, domainI
       return await transact(async (client) => {
         const owned = await client.query("SELECT id FROM cases WHERE id = $1 AND owner_user_id = $2 AND status <> 'deletion_pending'", [caseId, userId]);
         if (owned.rowCount !== 1) { await audit(client, userId, 'list', 'evidence', caseId, 'denied'); return notFound(); }
-        const result = await client.query('SELECT id, source_evidence_id AS "sourceEvidenceId", target_evidence_id AS "targetEvidenceId", relationship_type AS "relationshipType", note, created_at AS "createdAt" FROM case_evidence_relationships WHERE case_id = $1 ORDER BY created_at ASC, id ASC LIMIT ' + (MAX_REPORT_RELATIONSHIPS + 1), [caseId]);
+        const result = await client.query('SELECT id, source_evidence_id AS "sourceEvidenceId", target_evidence_id AS "targetEvidenceId", relationship_type AS "relationshipType", note, created_at AS "createdAt" FROM case_evidence_relationships WHERE case_id = $1 ORDER BY created_at ASC, id ASC LIMIT 500', [caseId]);
         await audit(client, userId, 'list_relationships', 'case', caseId);
         return { status: 200, body: { relationships: result.rows } };
       });
@@ -567,9 +543,33 @@ export async function routeCaseRequest({ method, pathname, body, userId, domainI
         );
         if (evidence.rowCount < 1) return invalid('Add at least one evidence item before generating a report.');
         const relationships = await client.query(
-          'SELECT source_evidence_id, target_evidence_id, relationship_type, note, created_at FROM case_evidence_relationships WHERE case_id = $1 ORDER BY created_at ASC, id ASC LIMIT 500',
+          'SELECT source_evidence_id, target_evidence_id, relationship_type, note, created_at FROM case_evidence_relationships WHERE case_id = $1 ORDER BY created_at ASC, id ASC LIMIT ' + (MAX_REPORT_RELATIONSHIPS + 1),
           [caseId]
         );
+        if (evidence.rowCount > MAX_REPORT_EVIDENCE) {
+          return {
+            status: 409,
+            body: {
+              error: 'REPORT_SNAPSHOT_LIMIT_EXCEEDED',
+              message: 'This case exceeds the report evidence limit. Reduce the evidence set before generating a report.',
+              limit: MAX_REPORT_EVIDENCE,
+              observedAtLeast: evidence.rowCount,
+              resource: 'evidence'
+            }
+          };
+        }
+        if (relationships.rowCount > MAX_REPORT_RELATIONSHIPS) {
+          return {
+            status: 409,
+            body: {
+              error: 'REPORT_SNAPSHOT_LIMIT_EXCEEDED',
+              message: 'This case exceeds the report relationship limit. Reduce the relationship set before generating a report.',
+              limit: MAX_REPORT_RELATIONSHIPS,
+              observedAtLeast: relationships.rowCount,
+              resource: 'relationships'
+            }
+          };
+        }
         const subject = owned.rows[0];
         const reportData = {
           schemaVersion: '1.0',
