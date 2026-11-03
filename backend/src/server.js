@@ -131,7 +131,6 @@ export const server = http.createServer(async (request, response) => {
       const user = await currentUser(request);
       if (!user) return send(response, 401, { error: 'UNAUTHENTICATED' });
       if (!(await enforceRateLimit(response, 'workspace:user:' + user.id, 120))) return;
-      if (!(await enforceRateLimit(response, 'workspace:user:' + user.id, 120))) return;
       assertCsrf(request);
       if (!String(request.headers['content-type'] || '').toLowerCase().includes('application/json')) return send(response, 415, { error: 'JSON_REQUIRED' });
       const body = await readJson(request, BODY_LIMIT);
@@ -156,6 +155,7 @@ export const server = http.createServer(async (request, response) => {
     try {
       const user = await currentUser(request);
       if (!user) return send(response, 401, { error: 'UNAUTHENTICATED' });
+      if (!(await enforceRateLimit(response, 'workspace:user:' + user.id, 120))) return;
       if (!['GET', 'POST', 'PATCH', 'DELETE'].includes(request.method || '')) return send(response, 405, { error: 'METHOD_NOT_ALLOWED' });
       const isMutation = request.method === 'POST' || request.method === 'PATCH' || request.method === 'DELETE';
       if (isMutation) assertCsrf(request);
