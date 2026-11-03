@@ -6,7 +6,7 @@ function retentionDays(name, required = false) {
     if (required) throw new Error('Set CASE_RETENTION_DAYS and/or AUDIT_RETENTION_DAYS to an approved retention period.');
     return null;
   }
-  if (!/^\\d+$/.test(raw)) throw new Error(name + ' must be a whole number of days.');
+  if (!/^\d+$/.test(raw)) throw new Error(name + ' must be a whole number of days.');
   const days = Number(raw);
   if (!Number.isSafeInteger(days) || days < 1 || days > 36500) {
     throw new Error(name + ' must be between 1 and 36500 days.');
@@ -75,7 +75,7 @@ async function main() {
       auditEventsForReview,
       auditEventsDeleted: 0,
       note: 'Audit events are counted for policy review only and are never deleted by this command.'
-    }) + '\\n');
+    }) + '\n');
   } catch (error) {
     await client.query('ROLLBACK').catch(() => {});
     throw error;
@@ -86,6 +86,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  process.stderr.write('Retention enforcement failed: ' + error.message + '\\n');
+  process.stderr.write('Retention enforcement failed: ' + error.message + '\n');
   process.exitCode = 1;
 });
