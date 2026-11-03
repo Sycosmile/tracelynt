@@ -48,13 +48,10 @@ async function main() {
         await client.query(
           `UPDATE cases
            SET retention_deadline = COALESCE(retention_deadline, created_at + ($1::int * interval '1 day')),
-               status = CASE
-                 WHEN COALESCE(retention_deadline, created_at + ($1::int * interval '1 day')) <= now()
-                   THEN 'deletion_pending'
-                 ELSE status
-               END,
+               status = 'deletion_pending',
                updated_at = now()
-           WHERE status <> 'deletion_pending'`,
+           WHERE status <> 'deletion_pending'
+             AND COALESCE(retention_deadline, created_at + ($1::int * interval '1 day')) <= now()`,
           [caseDays]
         );
       }
