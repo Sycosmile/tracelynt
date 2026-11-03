@@ -72,17 +72,18 @@ function validateEvidence(body) {
   return {
     claim: text(body.claim, 'Claim', 5000),
     category,
-    reviewState,
+    reviewState: 'unreviewed',
     sourceName: text(body.sourceName, 'Source name', 300),
     sourceUrl,
-    limitations: text(body.limitations ?? '', 'Limitations', 5000, false),
+    limitations: (text(body.limitations ?? '', 'Limitations', 5000, false) +
+      ' User-submitted provenance, review state, and freshness are unverified.').slice(0, 5000),
     observedAt: body.observedAt == null || body.observedAt === '' ? null : validDate(body.observedAt),
     sourcePublishedAt: body.sourcePublishedAt == null || body.sourcePublishedAt === '' ? null : validDate(body.sourcePublishedAt),
-    freshnessState,
-    freshnessAsOf: body.freshnessAsOf == null || body.freshnessAsOf === '' ? null : validDate(body.freshnessAsOf),
-    provenanceKind,
-    provenanceActorId: body.provenanceActorId == null || body.provenanceActorId === '' ? null : text(body.provenanceActorId, 'Provenance actor ID', 100),
-    sourceProviderId: body.sourceProviderId == null || body.sourceProviderId === '' ? null : text(body.sourceProviderId, 'Source provider ID', 100)
+    freshnessState: 'unknown',
+    freshnessAsOf: null,
+    provenanceKind: 'user',
+    provenanceActorId: null,
+    sourceProviderId: null
   };
 }
 
