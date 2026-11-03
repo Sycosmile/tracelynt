@@ -232,13 +232,15 @@ export async function routeCaseRequest({ method, pathname, body, userId, domainI
         const imported = [];
         for (const observation of observations) {
           const id = randomUUID();
-          const limitations = observation.limitations.join(' ');
+          const limitations = (observation.limitations.join(' ') +
+            ' Client-supplied provenance, review state, and freshness are unverified.').slice(0, 5000);
+          // This endpoint accepts user-submitted JSON, not authenticated provider output.
+          // Never promote caller-controlled metadata into trusted provenance or review state.
           const result = await client.query(
             'INSERT INTO evidence_items (id, case_id, creator_user_id, claim, category, review_state, source_name, source_url, observed_at, limitations, source_published_at, freshness_state, freshness_as_of, provenance_kind, provenance_actor_id, source_provider_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING id, claim, category, review_state AS "reviewState", source_name AS "sourceName", source_url AS "sourceUrl", observed_at AS "observedAt", source_published_at AS "sourcePublishedAt", created_at AS "createdAt", limitations, freshness_state AS "freshnessState", freshness_as_of AS "freshnessAsOf", provenance_kind AS "provenanceKind", provenance_actor_id AS "provenanceActorId", source_provider_id AS "sourceProviderId"',
-            [id, caseId, userId, observation.claim, observation.category, observation.reviewState,
+            [id, caseId, userId, observation.claim, observation.category, 'unreviewed',
               observation.source.name, observation.source.url, observation.observedAt, limitations,
-              observation.sourcePublishedAt, observation.freshness.state, observation.freshness.asOf,
-              observation.provenance.kind, observation.provenance.actorId, observation.source.providerId]
+              observation.sourcePublishedAt, 'unknown', null, 'user', null, null]
           );
           imported.push(result.rows[0]);
           await audit(client, userId, 'import', 'evidence', id);
