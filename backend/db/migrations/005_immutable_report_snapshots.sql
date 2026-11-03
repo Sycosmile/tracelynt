@@ -15,8 +15,8 @@ BEGIN
       USING ERRCODE = '55000';
   END IF;
 
-  IF OLD.deleted_at IS NOT NULL AND NEW.deleted_at IS NULL THEN
-    RAISE EXCEPTION 'A deleted report snapshot cannot be restored.'
+  IF OLD.deleted_at IS NOT NULL AND NEW.deleted_at IS DISTINCT FROM OLD.deleted_at THEN
+    RAISE EXCEPTION 'A report snapshot deletion marker cannot be changed or cleared.'
       USING ERRCODE = '55000';
   END IF;
 
