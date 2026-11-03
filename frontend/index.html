@@ -193,6 +193,26 @@
               <div class="report-actions"><button type="submit">Save evidence</button></div>
             </form>
             <div class="draft-panel"><div class="draft-heading"><h4>Evidence records</h4><span id="case-evidence-count">0 items</span></div><ul id="case-evidence-list" class="case-list"></ul></div>
+            <section class="draft-panel relationship-panel" aria-labelledby="relationship-title">
+              <div class="draft-heading"><h4 id="relationship-title">Evidence relationships</h4><span>Connect findings</span></div>
+              <form id="relationship-form" class="relationship-form">
+                <div class="form-grid">
+                  <div class="field"><label for="relationship-source">From evidence</label><select id="relationship-source" required><option value="">Select evidence</option></select></div>
+                  <div class="field"><label for="relationship-target">To evidence</label><select id="relationship-target" required><option value="">Select evidence</option></select></div>
+                </div>
+                <div class="form-grid">
+                  <div class="field"><label for="relationship-type">Relationship</label><select id="relationship-type"><option value="supports">Supports</option><option value="contradicts">Contradicts</option><option value="corroborates">Corroborates</option><option value="derived_from">Derived from</option><option value="same_subject">Same subject</option><option value="related_to">Related to</option></select></div>
+                  <div class="field"><label for="relationship-note">Analyst note (optional)</label><input id="relationship-note" maxlength="1000" placeholder="Explain the connection"></div>
+                </div>
+                <div class="report-actions"><button id="add-relationship" type="submit">Add relationship</button></div>
+                <p class="hint">Relationships record an analyst's interpretation; they do not independently verify either finding.</p>
+              </form>
+              <ul id="case-relationships-list" class="case-list"><li class="empty-record">No relationships recorded.</li></ul>
+            </section>
+            <section class="draft-panel timeline-panel" aria-labelledby="timeline-title">
+              <div class="draft-heading"><h4 id="timeline-title">Case activity</h4><span>Audit timeline</span></div>
+              <ol id="case-timeline-list" class="timeline-list"><li class="empty-record">No activity loaded.</li></ol>
+            </section>
             <div class="report-actions"><button id="generate-case-report" type="button">Generate versioned report</button></div>
             <div class="draft-panel"><div class="draft-heading"><h4>Saved report versions</h4><span>Immutable snapshots</span></div><ul id="case-report-list" class="case-list"><li class="empty-record">No reports generated yet.</li></ul></div>
             <div class="report-actions"><button id="case-report-download" class="secondary-button" type="button" hidden>Export viewed report JSON</button></div>
