@@ -12,6 +12,8 @@ const FRESHNESS_STATES = new Set(['current', 'stale', 'unknown', 'not_applicable
 const PROVENANCE_KINDS = new Set(['provider', 'analyst', 'system', 'user']);
 const RELATIONSHIP_TYPES = new Set(['supports', 'contradicts', 'corroborates', 'derived_from', 'same_subject', 'related_to']);
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const MAX_REPORT_EVIDENCE = 200;
+const MAX_REPORT_RELATIONSHIPS = 500;
 
 function invalid(message) {
   return { status: 400, body: { error: 'INVALID_INPUT', message } };
@@ -225,6 +227,30 @@ export async function routeCaseRequest({ method, pathname, body, userId, domainI
           await audit(client, userId, 'import_observations', 'case', caseId, 'denied');
           return notFound();
         }
+        if (evidence.rowCount > MAX_REPORT_EVIDENCE) {
+          return {
+            status: 409,
+            body: {
+              error: 'REPORT_SNAPSHOT_LIMIT_EXCEEDED',
+              message: 'This case exceeds the report evidence limit. Reduce the evidence set before generating a report.',
+              limit: MAX_REPORT_EVIDENCE,
+              observedAtLeast: evidence.rowCount,
+              resource: 'evidence'
+            }
+          };
+        }
+        if (relationships.rowCount > MAX_REPORT_RELATIONSHIPS) {
+          return {
+            status: 409,
+            body: {
+              error: 'REPORT_SNAPSHOT_LIMIT_EXCEEDED',
+              message: 'This case exceeds the report relationship limit. Reduce the relationship set before generating a report.',
+              limit: MAX_REPORT_RELATIONSHIPS,
+              observedAtLeast: relationships.rowCount,
+              resource: 'relationships'
+            }
+          };
+        }
         const subject = owned.rows[0];
         const subjectMismatch = observations.some((observation) => {
           const expectedType = observation.subject.type === 'organization' ? 'business' : observation.subject.type;
@@ -259,7 +285,7 @@ export async function routeCaseRequest({ method, pathname, body, userId, domainI
       return await transact(async (client) => {
         const owned = await client.query("SELECT id FROM cases WHERE id = $1 AND owner_user_id = $2 AND status <> 'deletion_pending'", [caseId, userId]);
         if (owned.rowCount !== 1) { await audit(client, userId, 'list', 'evidence', caseId, 'denied'); return notFound(); }
-        const result = await client.query('SELECT id, source_evidence_id AS "sourceEvidenceId", target_evidence_id AS "targetEvidenceId", relationship_type AS "relationshipType", note, created_at AS "createdAt" FROM case_evidence_relationships WHERE case_id = $1 ORDER BY created_at ASC, id ASC LIMIT 500', [caseId]);
+        const result = await client.query('SELECT id, source_evidence_id AS "sourceEvidenceId", target_evidence_id AS "targetEvidenceId", relationship_type AS "relationshipType", note, created_at AS "createdAt" FROM case_evidence_relationships WHERE case_id = $1 ORDER BY created_at ASC, id ASC LIMIT ' + (MAX_REPORT_RELATIONSHIPS + 1), [caseId]);
         await audit(client, userId, 'list_relationships', 'case', caseId);
         return { status: 200, body: { relationships: result.rows } };
       });
@@ -536,7 +562,7 @@ export async function routeCaseRequest({ method, pathname, body, userId, domainI
           return notFound();
         }
         const evidence = await client.query(
-          'SELECT id, claim, category, review_state, source_name, source_url, observed_at, source_published_at, created_at, limitations, correction_note, retracted_at, freshness_state, freshness_as_of, provenance_kind, provenance_actor_id, source_provider_id FROM evidence_items WHERE case_id = $1 ORDER BY created_at ASC LIMIT 200',
+          'SELECT id, claim, category, review_state, source_name, source_url, observed_at, source_published_at, created_at, limitations, correction_note, retracted_at, freshness_state, freshness_as_of, provenance_kind, provenance_actor_id, source_provider_id FROM evidence_items WHERE case_id = $1 ORDER BY created_at ASC LIMIT ' + (MAX_REPORT_EVIDENCE + 1),
           [caseId]
         );
         if (evidence.rowCount < 1) return invalid('Add at least one evidence item before generating a report.');
