@@ -92,7 +92,7 @@ resource "aws_sqs_queue_redrive_allow_policy" "inspection_dead_letter" {
   queue_url = aws_sqs_queue.inspection_dead_letter.id
   redrive_allow_policy = jsonencode({
     redrivePermission = "byQueue"
-    sourceQueueArns = [aws_sqs_queue.inspection_jobs.arn]
+    sourceQueueArns   = [aws_sqs_queue.inspection_jobs.arn]
   })
 }
 

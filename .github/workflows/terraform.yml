@@ -32,8 +32,8 @@ jobs:
         with:
           terraform_version: "1.9.8"
       - name: Check formatting
-        run: terraform fmt -recursive && cat main.tf
+        run: terraform fmt -check -recursive
       - name: Initialize providers without a backend
-        run: terraform init -backend=false -input=false
+        run: terraform init -backend=false -input=false && cat .terraform.lock.hcl
       - name: Validate configuration
         run: terraform validate
