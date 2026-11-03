@@ -331,12 +331,22 @@ export async function routeCaseRequest({ method, pathname, body, userId, domainI
       };
       return await transact(async (client) => {
         const current = await client.query(
-          "SELECT id FROM cases WHERE id = $1 AND owner_user_id = $2 AND status <> 'deletion_pending' FOR UPDATE",
+          "SELECT id, subject_type AS \"subjectType\", subject_label AS \"subjectLabel\" FROM cases WHERE id = $1 AND owner_user_id = $2 AND status <> 'deletion_pending' FOR UPDATE",
           [caseId, userId]
         );
         if (current.rowCount !== 1) {
           await audit(client, userId, 'update', 'case', caseId, 'denied');
           return notFound();
+        }
+        const existing = current.rows[0];
+        const changesSubject = (Object.hasOwn(input, 'subjectType') && input.subjectType !== existing.subjectType) ||
+          (Object.hasOwn(input, 'subjectLabel') && input.subjectLabel !== existing.subjectLabel);
+        if (changesSubject) {
+          const evidence = await client.query('SELECT 1 FROM evidence_items WHERE case_id = $1 LIMIT 1', [caseId]);
+          if (evidence.rowCount > 0) {
+            await audit(client, userId, 'update_subject', 'case', caseId, 'denied');
+            return { status: 409, body: { error: 'CASE_SUBJECT_LOCKED', message: 'A case subject cannot be changed after evidence has been recorded. Create a new case for a different subject.' } };
+          }
         }
         const values = [caseId, userId];
         const assignments = [];
