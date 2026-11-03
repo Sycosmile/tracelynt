@@ -75,8 +75,10 @@ function validateEvidence(body) {
     reviewState: 'unreviewed',
     sourceName: text(body.sourceName, 'Source name', 300),
     sourceUrl,
-    limitations: (text(body.limitations ?? '', 'Limitations', 5000, false) +
-      ' User-submitted provenance, review state, and freshness are unverified.').slice(0, 5000),
+    limitations: (() => {
+      const warning = ' User-submitted provenance, review state, and freshness are unverified.';
+      return text(body.limitations ?? '', 'Limitations', 5000, false).slice(0, 5000 - warning.length) + warning;
+    })(),
     observedAt: body.observedAt == null || body.observedAt === '' ? null : validDate(body.observedAt),
     sourcePublishedAt: body.sourcePublishedAt == null || body.sourcePublishedAt === '' ? null : validDate(body.sourcePublishedAt),
     freshnessState: 'unknown',
@@ -233,8 +235,8 @@ export async function routeCaseRequest({ method, pathname, body, userId, domainI
         const imported = [];
         for (const observation of observations) {
           const id = randomUUID();
-          const limitations = (observation.limitations.join(' ') +
-            ' Client-supplied provenance, review state, and freshness are unverified.').slice(0, 5000);
+          const warning = ' Client-supplied provenance, review state, and freshness are unverified.';
+          const limitations = observation.limitations.join(' ').slice(0, 5000 - warning.length) + warning;
           // This endpoint accepts user-submitted JSON, not authenticated provider output.
           // Never promote caller-controlled metadata into trusted provenance or review state.
           const result = await client.query(
