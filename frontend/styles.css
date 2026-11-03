@@ -6,3 +6,15 @@
 
 .workspace-account-actions{display:flex;flex-wrap:wrap;gap:8px}.workspace-account-actions button{min-height:34px;font-size:10px;padding:0 10px}
 @media(max-width:620px){.workspace-account-actions{width:100%;flex-direction:column}.workspace-account-actions button{width:100%}}
+
+/* Investigation relationship and audit timeline panels */
+.relationship-form{display:grid;gap:12px;margin:16px 0}
+.relationship-item,.timeline-event{display:grid;gap:7px;padding:13px 0;border-bottom:1px solid var(--line);min-width:0}
+.relationship-item:last-child,.timeline-event:last-child{border-bottom:0}
+.relationship-item strong,.timeline-event strong{font-size:12px;line-height:1.6;overflow-wrap:anywhere}
+.relationship-item p,.timeline-metadata{font-size:11px;line-height:1.6;color:var(--muted);margin:0;overflow-wrap:anywhere}
+.timeline-list{list-style:none;margin:12px 0 0;padding:0}
+.timeline-event{position:relative;padding-left:18px}
+.timeline-event:before{content:"";position:absolute;left:2px;top:18px;width:6px;height:6px;border-radius:50%;background:var(--accent)}
+.timeline-metadata{font-family:ui-monospace,SFMono-Regular,Consolas,monospace}
+@media(max-width:620px){.relationship-form .form-grid{grid-template-columns:1fr}.relationship-form .report-actions button{width:100%;padding:13px}}

@@ -388,6 +388,7 @@ const caseReportOutput = document.querySelector('#case-report-output');
 let workspaceCsrfToken = null;
 let selectedCase = null;
 let workspaceCases = [];
+let caseEvidenceItems = [];
 let selectedReportData = null;
 let selectedReportId = null;
 
@@ -496,11 +497,14 @@ async function openCase(caseId) {
   importDomainButton.disabled = false;
   document.querySelector('#generate-case-report').disabled = selectedCase.status !== 'open';
   const payloadEvidence = await workspaceRequest('/api/cases/' + encodeURIComponent(caseId) + '/evidence');
-  renderCaseEvidence(payloadEvidence.evidence || []);
-  await loadCaseReports(caseId);
+  caseEvidenceItems = payloadEvidence.evidence || [];
+  renderCaseEvidence(caseEvidenceItems);
+  updateRelationshipEvidenceOptions();
+  await Promise.all([loadCaseRelationships(caseId), loadCaseTimeline(caseId), loadCaseReports(caseId)]);
 }
 
 function renderCaseEvidence(items) {
+  caseEvidenceItems = items;
   caseEvidenceList.replaceChildren();
   document.querySelector('#case-evidence-count').textContent = items.length + ' items';
   if (!items.length) {
@@ -561,6 +565,78 @@ function renderCaseEvidence(items) {
     li.append(controls);
     caseEvidenceList.append(li);
   });
+}
+
+
+function updateRelationshipEvidenceOptions() {
+  const source = document.querySelector('#relationship-source');
+  const target = document.querySelector('#relationship-target');
+  for (const select of [source, target]) {
+    const previous = select.value;
+    select.replaceChildren(new Option('Select evidence', ''));
+    caseEvidenceItems.forEach(item => {
+      const label = item.claim.length > 100 ? item.claim.slice(0, 97) + '…' : item.claim;
+      select.add(new Option(label, item.id));
+    });
+    if (caseEvidenceItems.some(item => item.id === previous)) select.value = previous;
+    select.disabled = selectedCase?.status !== 'open' || caseEvidenceItems.length < 2;
+  }
+  document.querySelector('#add-relationship').disabled = selectedCase?.status !== 'open' || caseEvidenceItems.length < 2;
+}
+
+async function loadCaseRelationships(caseId) {
+  const list = document.querySelector('#case-relationships-list');
+  try {
+    const payload = await workspaceRequest('/api/cases/' + encodeURIComponent(caseId) + '/relationships');
+    const relationships = Array.isArray(payload.relationships) ? payload.relationships : [];
+    list.replaceChildren();
+    if (!relationships.length) {
+      list.append(textElement('li', 'empty-record', 'No relationships recorded yet.'));
+      return;
+    }
+    const evidenceById = new Map(caseEvidenceItems.map(item => [item.id, item]));
+    relationships.forEach(relationship => {
+      const item = document.createElement('li');
+      item.className = 'case-list-item relationship-item';
+      const source = evidenceById.get(relationship.sourceEvidenceId);
+      const target = evidenceById.get(relationship.targetEvidenceId);
+      item.append(
+        textElement('strong', '', (source?.claim || 'Evidence item') + ' → ' + (target?.claim || 'Evidence item')),
+        textElement('span', 'draft-meta', relationship.relationshipType.replaceAll('_', ' ') + ' · ' + new Date(relationship.createdAt).toLocaleString())
+      );
+      if (relationship.note) item.append(textElement('p', 'draft-meta', relationship.note));
+      list.append(item);
+    });
+  } catch (error) {
+    list.replaceChildren(textElement('li', 'empty-record', error.message));
+  }
+}
+
+async function loadCaseTimeline(caseId) {
+  const list = document.querySelector('#case-timeline-list');
+  try {
+    const payload = await workspaceRequest('/api/cases/' + encodeURIComponent(caseId) + '/timeline');
+    const events = Array.isArray(payload.events) ? payload.events.slice().reverse() : [];
+    list.replaceChildren();
+    if (!events.length) {
+      list.append(textElement('li', 'empty-record', 'No recorded activity yet.'));
+      return;
+    }
+    events.forEach(event => {
+      const item = document.createElement('li');
+      item.className = 'timeline-event';
+      item.append(
+        textElement('strong', '', event.eventType.replaceAll('_', ' ') + ' · ' + event.resourceType),
+        textElement('span', 'draft-meta', new Date(event.occurredAt).toLocaleString() + ' · ' + event.outcome)
+      );
+      if (event.metadata && Object.keys(event.metadata).length) {
+        item.append(textElement('p', 'timeline-metadata', JSON.stringify(event.metadata)));
+      }
+      list.append(item);
+    });
+  } catch (error) {
+    list.replaceChildren(textElement('li', 'empty-record', error.message));
+  }
 }
 
 async function loadCaseReports(caseId) {
@@ -686,6 +762,38 @@ document.querySelector('#evidence-form').addEventListener('submit', async event 
     await openCase(selectedCase.id);
   } catch (error) {
     setWorkspaceMessage(error.message);
+  }
+});
+
+
+document.querySelector('#relationship-form').addEventListener('submit', async event => {
+  event.preventDefault();
+  if (!selectedCase || selectedCase.status !== 'open') return;
+  const sourceEvidenceId = document.querySelector('#relationship-source').value;
+  const targetEvidenceId = document.querySelector('#relationship-target').value;
+  if (!sourceEvidenceId || !targetEvidenceId || sourceEvidenceId === targetEvidenceId) {
+    setWorkspaceMessage('Choose two different evidence records.');
+    return;
+  }
+  const button = document.querySelector('#add-relationship');
+  button.disabled = true;
+  try {
+    await workspaceRequest('/api/cases/' + encodeURIComponent(selectedCase.id) + '/relationships', {
+      method: 'POST',
+      body: JSON.stringify({
+        sourceEvidenceId,
+        targetEvidenceId,
+        relationshipType: document.querySelector('#relationship-type').value,
+        note: document.querySelector('#relationship-note').value
+      })
+    });
+    document.querySelector('#relationship-note').value = '';
+    setWorkspaceMessage('Evidence relationship recorded and added to the case timeline.', true);
+    await Promise.all([loadCaseRelationships(selectedCase.id), loadCaseTimeline(selectedCase.id)]);
+  } catch (error) {
+    setWorkspaceMessage(error.message);
+  } finally {
+    button.disabled = selectedCase?.status !== 'open' || caseEvidenceItems.length < 2;
   }
 });
 

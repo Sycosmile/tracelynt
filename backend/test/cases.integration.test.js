@@ -111,20 +111,36 @@ test('private case API enforces owner isolation and versions evidence reports', 
         limitations: 'Not real evidence.',
         observedAt: '2026-10-27T10:00:00.000Z',
         sourcePublishedAt: '2026-10-26T09:00:00.000Z',
-        freshnessState: 'stale',
+        reviewState: 'corroborated',
+        freshnessState: 'current',
         freshnessAsOf: '2026-10-27T11:00:00.000Z',
-        provenanceKind: 'provider',
-        provenanceActorId: 'test-analyst-17',
-        sourceProviderId: 'test-public-registry'
+        provenanceKind: 'system',
+        provenanceActorId: 'forged-analyst-17',
+        sourceProviderId: 'forged-provider'
       }
     });
     assert.equal(evidenceCreated.status, 201);
     assert.equal(new Date(evidenceCreated.body.evidence.sourcePublishedAt).toISOString(), '2026-10-26T09:00:00.000Z');
-    assert.equal(evidenceCreated.body.evidence.freshnessState, 'stale');
-    assert.equal(new Date(evidenceCreated.body.evidence.freshnessAsOf).toISOString(), '2026-10-27T11:00:00.000Z');
-    assert.equal(evidenceCreated.body.evidence.provenanceKind, 'provider');
-    assert.equal(evidenceCreated.body.evidence.provenanceActorId, 'test-analyst-17');
-    assert.equal(evidenceCreated.body.evidence.sourceProviderId, 'test-public-registry');
+    assert.equal(evidenceCreated.body.evidence.reviewState, 'unreviewed');
+    assert.equal(evidenceCreated.body.evidence.freshnessState, 'unknown');
+    assert.equal(evidenceCreated.body.evidence.freshnessAsOf, null);
+    assert.equal(evidenceCreated.body.evidence.provenanceKind, 'user');
+    assert.equal(evidenceCreated.body.evidence.provenanceActorId, null);
+    assert.equal(evidenceCreated.body.evidence.sourceProviderId, null);
+    assert.match(evidenceCreated.body.evidence.limitations, /are unverified/);
+
+    const subjectChangeAfterEvidence = await routeCaseRequest({
+      method: 'PATCH', pathname: '/api/cases/' + caseId, userId: userA,
+      body: { subjectLabel: 'different.example' }
+    });
+    assert.equal(subjectChangeAfterEvidence.status, 409);
+    assert.equal(subjectChangeAfterEvidence.body.error, 'CASE_SUBJECT_LOCKED');
+
+    const unchangedSubject = await routeCaseRequest({
+      method: 'GET', pathname: '/api/cases/' + caseId, userId: userA
+    });
+    assert.equal(unchangedSubject.status, 200);
+    assert.equal(unchangedSubject.body.case.subjectLabel, 'example.com');
 
     const legacyEvidence = await routeCaseRequest({
       method: 'POST', pathname: '/api/cases/' + caseId + '/evidence', userId: userA,
@@ -151,11 +167,12 @@ test('private case API enforces owner isolation and versions evidence reports', 
     const persistedEvidence = ownEvidence.body.evidence.find((item) => item.id === evidenceCreated.body.evidence.id);
     assert.ok(persistedEvidence);
     assert.equal(new Date(persistedEvidence.sourcePublishedAt).toISOString(), '2026-10-26T09:00:00.000Z');
-    assert.equal(persistedEvidence.freshnessState, 'stale');
-    assert.equal(new Date(persistedEvidence.freshnessAsOf).toISOString(), '2026-10-27T11:00:00.000Z');
-    assert.equal(persistedEvidence.provenanceKind, 'provider');
-    assert.equal(persistedEvidence.provenanceActorId, 'test-analyst-17');
-    assert.equal(persistedEvidence.sourceProviderId, 'test-public-registry');
+    assert.equal(persistedEvidence.reviewState, 'unreviewed');
+    assert.equal(persistedEvidence.freshnessState, 'unknown');
+    assert.equal(persistedEvidence.freshnessAsOf, null);
+    assert.equal(persistedEvidence.provenanceKind, 'user');
+    assert.equal(persistedEvidence.provenanceActorId, null);
+    assert.equal(persistedEvidence.sourceProviderId, null);
 
     const foreignEvidence = await routeCaseRequest({
       method: 'GET', pathname: '/api/cases/' + caseId + '/evidence', userId: userB
@@ -171,15 +188,9 @@ test('private case API enforces owner isolation and versions evidence reports', 
     const provenanceFinding = findings.find((item) => item.id === evidenceCreated.body.evidence.id);
     assert.ok(provenanceFinding);
     assert.equal(provenanceFinding.sourcePublishedAt, '2026-10-26T09:00:00.000Z');
-    assert.deepEqual(provenanceFinding.freshness, {
-      state: 'stale',
-      asOf: '2026-10-27T11:00:00.000Z'
-    });
-    assert.deepEqual(provenanceFinding.provenance, {
-      kind: 'provider',
-      actorId: 'test-analyst-17'
-    });
-    assert.equal(provenanceFinding.sourceProviderId, 'test-public-registry');
+    assert.deepEqual(provenanceFinding.freshness, { state: 'unknown', asOf: null });
+    assert.deepEqual(provenanceFinding.provenance, { kind: 'user', actorId: null });
+    assert.equal(provenanceFinding.sourceProviderId, null);
     const legacyFinding = findings.find((item) => item.id === legacyEvidence.body.evidence.id);
     assert.ok(legacyFinding);
     assert.equal(legacyFinding.sourcePublishedAt, null);
@@ -187,6 +198,17 @@ test('private case API enforces owner isolation and versions evidence reports', 
     assert.deepEqual(legacyFinding.provenance, { kind: 'user', actorId: null });
     assert.equal(legacyFinding.sourceProviderId, null);
     const reportId = report.body.report.id;
+    await assert.rejects(
+      pool.query(
+        "UPDATE report_versions SET report_data = jsonb_set(report_data, '{interpretation,statement}', '\"tampered\"'::jsonb) WHERE id = $1",
+        [reportId]
+      ),
+      (error) => error.code === '55000' && /immutable/i.test(error.message)
+    );
+    await assert.rejects(
+      pool.query('UPDATE report_versions SET version_number = version_number + 1 WHERE id = $1', [reportId]),
+      (error) => error.code === '55000' && /immutable/i.test(error.message)
+    );
     const ownReportRead = await routeCaseRequest({
       method: 'GET', pathname: '/api/cases/' + caseId + '/reports/' + reportId, userId: userA
     });
@@ -195,6 +217,43 @@ test('private case API enforces owner isolation and versions evidence reports', 
       method: 'GET', pathname: '/api/cases/' + caseId + '/reports/' + reportId, userId: userB
     });
     assert.equal(foreignReportRead.status, 404);
+
+    const reviewUpdate = await routeCaseRequest({
+      method: 'PATCH',
+      pathname: '/api/cases/' + caseId + '/evidence/' + evidenceCreated.body.evidence.id,
+      userId: userA,
+      body: { reviewState: 'disputed', correctionNote: 'Synthetic review correction.' }
+    });
+    assert.equal(reviewUpdate.status, 200);
+    assert.equal(reviewUpdate.body.evidence.reviewState, 'disputed');
+    const reviewAudit = await pool.query(
+      "SELECT actor_user_id, action, metadata FROM audit_events WHERE resource_type = 'evidence' AND resource_id = $1 AND action = 'update' ORDER BY occurred_at DESC, id DESC LIMIT 1",
+      [evidenceCreated.body.evidence.id]
+    );
+    assert.equal(reviewAudit.rows[0].actor_user_id, userA);
+    assert.deepEqual(reviewAudit.rows[0].metadata, {
+      changedFields: ['correctionNote', 'reviewState'],
+      previousReviewState: 'unreviewed',
+      nextReviewState: 'disputed'
+    });
+    const timelineAfterReview = await routeCaseRequest({
+      method: 'GET', pathname: '/api/cases/' + caseId + '/timeline', userId: userA
+    });
+    assert.equal(timelineAfterReview.status, 200);
+    const reviewTimelineEvent = timelineAfterReview.body.events.find(
+      (event) => event.resourceId === evidenceCreated.body.evidence.id && event.eventType === 'update'
+    );
+    assert.ok(reviewTimelineEvent);
+    assert.deepEqual(reviewTimelineEvent.metadata, reviewAudit.rows[0].metadata);
+    const immutableReportRead = await routeCaseRequest({
+      method: 'GET', pathname: '/api/cases/' + caseId + '/reports/' + reportId, userId: userA
+    });
+    assert.equal(immutableReportRead.status, 200);
+    const originalFinding = immutableReportRead.body.report.reportData.findings.find(
+      (item) => item.id === evidenceCreated.body.evidence.id
+    );
+    assert.equal(originalFinding.verificationState, 'unreviewed');
+    assert.equal(originalFinding.correctionNote, null);
     const ownExport = await routeCaseRequest({
       method: 'POST', pathname: '/api/cases/' + caseId + '/reports/' + reportId + '/export', userId: userA, body: {}
     });
@@ -214,6 +273,84 @@ test('private case API enforces owner isolation and versions evidence reports', 
       method: 'GET', pathname: '/api/cases/' + caseId + '/reports', userId: userB
     });
     assert.equal(foreignReports.status, 404);
+
+    for (let index = 0; index < 197; index += 1) {
+      const extra = await routeCaseRequest({
+        method: 'POST', pathname: '/api/cases/' + caseId + '/evidence', userId: userA,
+        body: {
+          claim: 'Synthetic overflow fixture ' + index,
+          category: 'user_report',
+          sourceName: 'Automated test',
+          sourceUrl: '',
+          limitations: 'Synthetic only.'
+        }
+      });
+      assert.equal(extra.status, 201);
+    }
+    const evidenceOverflow = await routeCaseRequest({
+      method: 'POST', pathname: '/api/cases/' + caseId + '/reports', userId: userA, body: {}
+    });
+    assert.equal(evidenceOverflow.status, 409);
+    assert.equal(evidenceOverflow.body.error, 'REPORT_SNAPSHOT_LIMIT_EXCEEDED');
+    assert.equal(evidenceOverflow.body.resource, 'evidence');
+    assert.equal(evidenceOverflow.body.limit, 200);
+    assert.equal(evidenceOverflow.body.observedAtLeast, 201);
+
+    const relationshipCase = await routeCaseRequest({
+      method: 'POST', pathname: '/api/cases', userId: userA,
+      body: {
+        title: 'Synthetic relationship-limit case',
+        purpose: 'Automated report boundary test only',
+        subjectType: 'domain',
+        subjectLabel: 'relationships.example'
+      }
+    });
+    assert.equal(relationshipCase.status, 201);
+    const relationshipCaseId = relationshipCase.body.case.id;
+    const relationshipEvidence = [];
+    for (let index = 0; index < 14; index += 1) {
+      const item = await routeCaseRequest({
+        method: 'POST', pathname: '/api/cases/' + relationshipCaseId + '/evidence', userId: userA,
+        body: {
+          claim: 'Synthetic relationship fixture ' + index,
+          category: 'user_report',
+          sourceName: 'Automated test',
+          sourceUrl: '',
+          limitations: 'Synthetic only.'
+        }
+      });
+      assert.equal(item.status, 201);
+      relationshipEvidence.push(item.body.evidence.id);
+    }
+    const relationshipTypes = ['supports', 'contradicts', 'corroborates', 'derived_from', 'same_subject', 'related_to'];
+    let relationshipCount = 0;
+    for (const relationshipType of relationshipTypes) {
+      for (const sourceId of relationshipEvidence) {
+        for (const targetId of relationshipEvidence) {
+          if (sourceId === targetId || relationshipCount === 501) continue;
+          const linked = await routeCaseRequest({
+            method: 'POST',
+            pathname: '/api/cases/' + relationshipCaseId + '/relationships',
+            userId: userA,
+            body: { sourceEvidenceId: sourceId, targetEvidenceId: targetId, relationshipType }
+          });
+          assert.equal(linked.status, 201);
+          relationshipCount += 1;
+          if (relationshipCount === 501) break;
+        }
+        if (relationshipCount === 501) break;
+      }
+      if (relationshipCount === 501) break;
+    }
+    assert.equal(relationshipCount, 501);
+    const relationshipOverflow = await routeCaseRequest({
+      method: 'POST', pathname: '/api/cases/' + relationshipCaseId + '/reports', userId: userA, body: {}
+    });
+    assert.equal(relationshipOverflow.status, 409);
+    assert.equal(relationshipOverflow.body.error, 'REPORT_SNAPSHOT_LIMIT_EXCEEDED');
+    assert.equal(relationshipOverflow.body.resource, 'relationships');
+    assert.equal(relationshipOverflow.body.limit, 500);
+    assert.equal(relationshipOverflow.body.observedAtLeast, 501);
 
     const unconfirmedDelete = await routeCaseRequest({
       method: 'DELETE', pathname: '/api/cases/' + caseId, userId: userA, body: {}

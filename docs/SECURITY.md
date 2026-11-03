@@ -11,7 +11,7 @@ This document records the current prototype's security posture and the controls 
 - Request body limits, no-store responses, content-security-policy headers, and an in-memory per-process rate limiter.
 - Server-side OIDC flow structure with state, nonce, PKCE, hashed opaque sessions, expiry/revocation, and CSRF checks. Real provider credentials and end-to-end provider login are not configured.
 - Owner-scoped case/evidence/report services, parameterized SQL, immutable report snapshots, and audit events for sensitive reads/exports.
-- Deletion requests that revoke sessions as applicable and mark records pending; a guarded manual purge removes pending primary-database records but does not delete backup copies.
+- Deletion requests that revoke sessions as applicable and mark records pending; a guarded manual purge removes pending primary-database records but does not delete backup copies. The retention command defaults to dry-run, applies approved case deadlines only after explicit confirmation, and reports old audit events for policy review without deleting them.
 - CI checks for JavaScript syntax, unit/API tests, PostgreSQL migrations, migration rollback/checksum protections, and case-owner isolation.
 
 The latest confirmed workflow result is recorded in the repository history; re-check GitHub Actions after code or workflow changes. Passing CI does not establish production readiness.
@@ -52,7 +52,7 @@ Primary risks: broken object-level authorization, SSRF, injection and unsafe ren
 ### Data protection
 
 - Collect only information necessary for a defined purpose.
-- Approve explicit retention deadlines before production and implement scheduled enforcement only after policy approval.
+- Approve explicit retention deadlines before production and implement scheduled enforcement only after policy approval. `backend/db/enforce-retention.js` is an operator-run command: set `CASE_RETENTION_DAYS` and/or `AUDIT_RETENTION_DAYS`; review its dry-run output; only then set `RETENTION_DRY_RUN=false` and `CONFIRM_RETENTION_POLICY=YES`. Audit events are never deleted by this command. The separate pending-case purge remains a distinct destructive step and backup/log deletion is not covered.
 - Redact personal data from logs unless strictly necessary.
 - Encrypt traffic in transit and use managed storage encryption where available.
 - Review report export authorization, expiry, and deletion behavior.

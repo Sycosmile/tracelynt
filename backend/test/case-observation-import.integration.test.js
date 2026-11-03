@@ -18,9 +18,9 @@ test('normalized observations import only into an owned matching open case', { s
     retrievedAt: '2026-10-29T10:00:00.000Z',
     observedAt: '2026-10-29T09:55:00.000Z',
     sourcePublishedAt: null,
-    reviewState: 'unreviewed',
-    freshness: { state: 'unknown', asOf: null },
-    provenance: { kind: 'provider', actorId: 'synthetic-adapter' },
+    reviewState: 'corroborated',
+    freshness: { state: 'current', asOf: '2026-10-29T10:00:00.000Z' },
+    provenance: { kind: 'system', actorId: 'forged-system-actor' },
     limitations: ['Synthetic data; not a real domain assessment.']
   };
 
@@ -42,8 +42,13 @@ test('normalized observations import only into an owned matching open case', { s
     });
     assert.equal(imported.status, 201);
     assert.equal(imported.body.importedCount, 1);
-    assert.equal(imported.body.evidence[0].sourceProviderId, 'synthetic-dns');
-    assert.equal(imported.body.evidence[0].provenanceKind, 'provider');
+    assert.equal(imported.body.evidence[0].sourceProviderId, null);
+    assert.equal(imported.body.evidence[0].provenanceKind, 'user');
+    assert.equal(imported.body.evidence[0].provenanceActorId, null);
+    assert.equal(imported.body.evidence[0].reviewState, 'unreviewed');
+    assert.equal(imported.body.evidence[0].freshnessState, 'unknown');
+    assert.equal(imported.body.evidence[0].freshnessAsOf, null);
+    assert.match(imported.body.evidence[0].limitations, /are unverified/);
 
     const persisted = await routeCaseRequest({
       method: 'GET',
@@ -55,6 +60,9 @@ test('normalized observations import only into an owned matching open case', { s
     assert.equal(persisted.body.evidence[0].claim, observation.claim);
     assert.equal(persisted.body.evidence[0].sourceUrl, observation.source.url);
     assert.equal(persisted.body.evidence[0].freshnessState, 'unknown');
+    assert.equal(persisted.body.evidence[0].reviewState, 'unreviewed');
+    assert.equal(persisted.body.evidence[0].provenanceKind, 'user');
+    assert.equal(persisted.body.evidence[0].sourceProviderId, null);
 
     const foreignImport = await routeCaseRequest({
       method: 'POST',
