@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { getPool } from '../src/db.js';
 import { consumeRateLimit } from '../src/rate-limit.js';
 
@@ -9,7 +9,7 @@ test('PostgreSQL rate limits are atomic across concurrent callers and persist ac
   const pool = getPool();
   try {
     const decisions = await Promise.all(Array.from({ length: 25 }, () =>
-      consumeRateLimit({ key, limit: 10, windowMs: 60_000 })
+      consumeRateLimit({ key, limit: 10, windowMs: 60_000, sharedStore: true })
     ));
     assert.equal(decisions.filter(item => item.allowed).length, 10);
     assert.equal(decisions.filter(item => !item.allowed).length, 15);
@@ -18,7 +18,7 @@ test('PostgreSQL rate limits are atomic across concurrent callers and persist ac
       assert.ok(decision.retryAfter >= 1 && decision.retryAfter <= 60);
     }
 
-    const persisted = await consumeRateLimit({ key, limit: 10, windowMs: 60_000 });
+    const persisted = await consumeRateLimit({ key, limit: 10, windowMs: 60_000, sharedStore: true });
     assert.equal(persisted.allowed, false);
 
     const stored = await pool.query(
@@ -37,12 +37,12 @@ test('PostgreSQL rate-limit windows reset at the next fixed-window boundary', { 
   const key = 'window-test:' + randomUUID();
   const pool = getPool();
   try {
-    const first = await consumeRateLimit({ key, limit: 1, windowMs: 1000 });
+    const first = await consumeRateLimit({ key, limit: 1, windowMs: 1000, sharedStore: true });
     assert.equal(first.allowed, true);
-    const second = await consumeRateLimit({ key, limit: 1, windowMs: 1000 });
+    const second = await consumeRateLimit({ key, limit: 1, windowMs: 1000, sharedStore: true });
     assert.equal(second.allowed, false);
     await new Promise(resolve => setTimeout(resolve, 1100));
-    const nextWindow = await consumeRateLimit({ key, limit: 1, windowMs: 1000 });
+    const nextWindow = await consumeRateLimit({ key, limit: 1, windowMs: 1000, sharedStore: true });
     assert.equal(nextWindow.allowed, true);
   } finally {
     await pool.query('DELETE FROM rate_limit_buckets WHERE key_hash = $1', [createHashForTest(key)]);
