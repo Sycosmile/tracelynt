@@ -22,12 +22,12 @@ function localDecision(key, limit, windowMs, now) {
   };
 }
 
-export async function consumeRateLimit({ key, limit, windowMs = 60_000, now = Date.now() }) {
+export async function consumeRateLimit({ key, limit, windowMs = 60_000, now = Date.now(), sharedStore = process.env.NODE_ENV === 'production' }) {
   if (typeof key !== 'string' || !key || key.length > 1024) throw new TypeError('Rate-limit key must be non-empty text up to 1024 characters.');
   if (!Number.isSafeInteger(limit) || limit < 1) throw new TypeError('Rate-limit limit must be a positive integer.');
   if (!Number.isSafeInteger(windowMs) || windowMs < 1000 || windowMs > 3_600_000) throw new TypeError('Rate-limit window must be between 1 second and 1 hour.');
 
-  if (process.env.NODE_ENV !== 'production') {
+  if (!sharedStore) {
     return localDecision(key, limit, windowMs, now);
   }
 
