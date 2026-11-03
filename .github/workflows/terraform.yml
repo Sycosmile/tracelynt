@@ -34,6 +34,6 @@ jobs:
       - name: Check formatting
         run: terraform fmt -check -recursive
       - name: Initialize providers without a backend
-        run: terraform init -backend=false -input=false && cat .terraform.lock.hcl
+        run: terraform init -backend=false -input=false -lockfile=readonly
       - name: Validate configuration
         run: terraform validate
