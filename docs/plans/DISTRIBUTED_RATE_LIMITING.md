@@ -1,37 +1,30 @@
 # Distributed rate limiting — implementation contract
 
-## Current state
+## Implemented
 
-The API currently uses process-local counters. Limits reset on process restart and are not shared across workers or replicas. This document is a design contract only; distributed enforcement is not implemented by this change.
+- Production decisions use PostgreSQL as the shared atomic store; no Redis or new vendor is required.
+- Every decision uses one atomic INSERT ... ON CONFLICT DO UPDATE statement, with fixed 60-second windows and a persisted expiry.
+- Public routes are keyed by the TCP socket address; private workspace routes enforce both an IP quota and a stable authenticated-user quota.
+- Login, callback, logout, domain/report, phone and workspace routes have separate namespaces and limits.
+- Keys are SHA-256 hashed before storage. Raw IPs, user IDs, phone numbers, search terms and case content are not stored in the limiter table.
+- Production fails closed with HTTP 503 when PostgreSQL cannot make a decision. Rejected requests return HTTP 429 and Retry-After.
+- Non-production uses an in-memory fallback only; this is explicitly not distributed.
+- Forwarded headers are ignored. The implementation does not infer client IP from untrusted request headers.
 
-## Required behavior
+## Data model and operations
 
-- Use an atomic shared-store operation for each limit decision; never implement read-then-write counters.
-- Define separate policies for unauthenticated domain checks, phone-format checks, authenticated workspace reads, mutations, login initiation, and exports.
-- Key authenticated actions by stable user ID and include IP-based abuse controls where appropriate. Do not place raw phone numbers, search terms, or other personal data in keys.
-- Use a documented fixed-window or sliding-window algorithm, explicit TTLs, and bounded key cardinality.
-- Define fail-closed behavior for authentication, account mutation, and expensive operations. Any fail-open exception must be explicitly approved and observable.
-- Return consistent 429 responses and bounded Retry-After values.
-- Ensure client-supplied forwarding headers are trusted only behind explicitly configured trusted proxies.
+Migration 006_shared_rate_limit_buckets.sql creates a bounded-lifecycle table with a 32-byte hash, fixed-window start, count and expiry. Expired records are removed in bounded batches during normal traffic. No external cache, service or paid infrastructure is introduced.
 
-## Backend decision required
+## Validation
 
-Select a managed Redis-compatible service or another shared atomic store after reviewing hosting compatibility, availability, cost, data-processing terms, network access, and operational ownership. Do not silently add a mandatory service before that decision.
+PostgreSQL integration tests issue concurrent increments against one key and assert that exactly the configured number are allowed. They also verify persisted counts, hash-only key storage, and window reset. Existing private-case integration tests exercise owner isolation for case reads, updates, evidence, reports and exports.
 
-## Acceptance tests
+## Remaining deployment verification
 
-- Two independent API instances share counters.
-- Concurrent requests cannot exceed a configured limit due to race conditions.
-- Expired counters reset correctly.
-- Authenticated user limits remain stable across IP changes while IP abuse limits still apply.
-- Spoofed forwarding headers cannot evade limits.
-- Store timeout/outage follows the documented per-route failure policy.
-- Metrics expose decisions and backend health without logging personal input.
+- Apply migration 006 before deploying the matching application revision.
+- Verify shared counters through the actual multi-process or multi-replica hosting topology.
+- Run a production-like PostgreSQL outage test and confirm fail-closed 503 behavior.
+- Verify the actual ingress socket-address behavior; forwarded headers remain untrusted.
+- Configure monitoring and database capacity for limiter traffic.
 
-## Rollout
-
-1. Choose and provision the backend.
-2. Add configuration validation and a local development profile.
-3. Implement atomic limiter operations and unit/integration tests.
-4. Shadow-compare existing and shared decisions without changing enforcement.
-5. Enable enforcement gradually and alert on backend errors.
+CI tests do not establish production readiness or prove the deployed ingress and database topology. Keep synthetic data only until the separate OIDC, network egress, retention/backup, legal and independent security-review blockers are resolved.
