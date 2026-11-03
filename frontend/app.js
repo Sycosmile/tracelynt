@@ -388,6 +388,7 @@ const caseReportOutput = document.querySelector('#case-report-output');
 let workspaceCsrfToken = null;
 let selectedCase = null;
 let workspaceCases = [];
+let caseEvidenceItems = [];
 let selectedReportData = null;
 let selectedReportId = null;
 
@@ -496,11 +497,14 @@ async function openCase(caseId) {
   importDomainButton.disabled = false;
   document.querySelector('#generate-case-report').disabled = selectedCase.status !== 'open';
   const payloadEvidence = await workspaceRequest('/api/cases/' + encodeURIComponent(caseId) + '/evidence');
-  renderCaseEvidence(payloadEvidence.evidence || []);
-  await loadCaseReports(caseId);
+  caseEvidenceItems = payloadEvidence.evidence || [];
+  renderCaseEvidence(caseEvidenceItems);
+  updateRelationshipEvidenceOptions();
+  await Promise.all([loadCaseRelationships(caseId), loadCaseTimeline(caseId), loadCaseReports(caseId)]);
 }
 
 function renderCaseEvidence(items) {
+  caseEvidenceItems = items;
   caseEvidenceList.replaceChildren();
   document.querySelector('#case-evidence-count').textContent = items.length + ' items';
   if (!items.length) {
