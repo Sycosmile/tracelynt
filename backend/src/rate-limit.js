@@ -50,7 +50,7 @@ export async function consumeRateLimit({ key, limit, windowMs = 60_000, now = Da
            expires_at = EXCLUDED.expires_at
      RETURNING request_count,
        GREATEST(1, CEIL(EXTRACT(EPOCH FROM (
-         window_started_at + ($2 * interval '1 second') - clock_timestamp()
+         window_started_at + ($2::integer * interval '1 second') - clock_timestamp()
        )))::integer) AS retry_after`,
     [keyHash, seconds]
   );
