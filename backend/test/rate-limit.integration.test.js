@@ -41,7 +41,7 @@ test('PostgreSQL rate-limit windows reset at the next fixed-window boundary', { 
     assert.equal(first.allowed, true);
     const second = await consumeRateLimit({ key, limit: 1, windowMs: 1000, sharedStore: true });
     assert.equal(second.allowed, false);
-    await new Promise(resolve => setTimeout(resolve, 1100));
+    await new Promise(resolve => setTimeout(resolve, first.retryAfter * 1000 + 100));
     const nextWindow = await consumeRateLimit({ key, limit: 1, windowMs: 1000, sharedStore: true });
     assert.equal(nextWindow.allowed, true);
   } finally {
@@ -52,3 +52,21 @@ test('PostgreSQL rate-limit windows reset at the next fixed-window boundary', { 
 function createHashForTest(key) {
   return createHash('sha256').update('tracelynt-rate-limit:').update(key).digest();
 }
+
+test('local development limiter enforces its threshold without a database', async () => {
+  const key = 'local-test:' + randomUUID();
+  const first = await consumeRateLimit({ key, limit: 2, windowMs: 60_000, sharedStore: false });
+  const second = await consumeRateLimit({ key, limit: 2, windowMs: 60_000, sharedStore: false });
+  const third = await consumeRateLimit({ key, limit: 2, windowMs: 60_000, sharedStore: false });
+  assert.equal(first.allowed, true);
+  assert.equal(second.allowed, true);
+  assert.equal(third.allowed, false);
+  assert.ok(third.retryAfter >= 1);
+});
+
+test('shared production mode rejects decisions when PostgreSQL is unavailable', { skip: Boolean(process.env.DATABASE_URL) }, async () => {
+  await assert.rejects(
+    consumeRateLimit({ key: 'outage-test:' + randomUUID(), limit: 1, sharedStore: true }),
+    /DATABASE_URL is required/
+  );
+});
