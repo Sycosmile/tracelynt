@@ -206,6 +206,43 @@ test('private case API enforces owner isolation and versions evidence reports', 
       method: 'GET', pathname: '/api/cases/' + caseId + '/reports/' + reportId, userId: userB
     });
     assert.equal(foreignReportRead.status, 404);
+
+    const reviewUpdate = await routeCaseRequest({
+      method: 'PATCH',
+      pathname: '/api/cases/' + caseId + '/evidence/' + evidenceCreated.body.evidence.id,
+      userId: userA,
+      body: { reviewState: 'disputed', correctionNote: 'Synthetic review correction.' }
+    });
+    assert.equal(reviewUpdate.status, 200);
+    assert.equal(reviewUpdate.body.evidence.reviewState, 'disputed');
+    const reviewAudit = await pool.query(
+      "SELECT actor_user_id, action, metadata FROM audit_events WHERE resource_type = 'evidence' AND resource_id = $1 AND action = 'update' ORDER BY occurred_at DESC, id DESC LIMIT 1",
+      [evidenceCreated.body.evidence.id]
+    );
+    assert.equal(reviewAudit.rows[0].actor_user_id, userA);
+    assert.deepEqual(reviewAudit.rows[0].metadata, {
+      changedFields: ['correctionNote', 'reviewState'],
+      previousReviewState: 'unreviewed',
+      nextReviewState: 'disputed'
+    });
+    const timelineAfterReview = await routeCaseRequest({
+      method: 'GET', pathname: '/api/cases/' + caseId + '/timeline', userId: userA
+    });
+    assert.equal(timelineAfterReview.status, 200);
+    const reviewTimelineEvent = timelineAfterReview.body.events.find(
+      (event) => event.resourceId === evidenceCreated.body.evidence.id && event.eventType === 'update'
+    );
+    assert.ok(reviewTimelineEvent);
+    assert.deepEqual(reviewTimelineEvent.metadata, reviewAudit.rows[0].metadata);
+    const immutableReportRead = await routeCaseRequest({
+      method: 'GET', pathname: '/api/cases/' + caseId + '/reports/' + reportId, userId: userA
+    });
+    assert.equal(immutableReportRead.status, 200);
+    const originalFinding = immutableReportRead.body.report.reportData.findings.find(
+      (item) => item.id === evidenceCreated.body.evidence.id
+    );
+    assert.equal(originalFinding.verificationState, 'unreviewed');
+    assert.equal(originalFinding.correctionNote, null);
     const ownExport = await routeCaseRequest({
       method: 'POST', pathname: '/api/cases/' + caseId + '/reports/' + reportId + '/export', userId: userA, body: {}
     });

@@ -95,10 +95,10 @@ function validDate(value) {
   return date.toISOString();
 }
 
-async function audit(client, userId, action, resourceType, resourceId, outcome = 'success') {
+async function audit(client, userId, action, resourceType, resourceId, outcome = 'success', metadata = {}) {
   await client.query(
-    'INSERT INTO audit_events (id, actor_user_id, action, resource_type, resource_id, outcome) VALUES ($1, $2, $3, $4, $5, $6)',
-    [randomUUID(), userId, action, resourceType, resourceId, outcome]
+    'INSERT INTO audit_events (id, actor_user_id, action, resource_type, resource_id, outcome, metadata) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)',
+    [randomUUID(), userId, action, resourceType, resourceId, outcome, JSON.stringify(metadata)]
   );
 }
 
@@ -287,7 +287,7 @@ export async function routeCaseRequest({ method, pathname, body, userId, domainI
       return await transact(async (client) => {
         const owned = await client.query("SELECT id FROM cases WHERE id = $1 AND owner_user_id = $2 AND status <> 'deletion_pending'", [caseId, userId]);
         if (owned.rowCount !== 1) { await audit(client, userId, 'read_timeline', 'case', caseId, 'denied'); return notFound(); }
-        const result = await client.query("SELECT ae.id AS \"eventId\", ae.action AS \"eventType\", ae.resource_type AS \"resourceType\", ae.resource_id AS \"resourceId\", ae.occurred_at AS \"occurredAt\", ae.outcome FROM audit_events ae WHERE ae.action IN ('create', 'import', 'import_domain_observations', 'import_observations', 'update', 'archive', 'delete_request', 'create_relationship', 'export', 'purge') AND ((ae.resource_type = 'case' AND ae.resource_id = $1) OR (ae.resource_type = 'evidence' AND ae.resource_id IN (SELECT id FROM evidence_items WHERE case_id = $1)) OR (ae.resource_type IN ('report', 'export') AND ae.resource_id IN (SELECT id FROM report_versions WHERE case_id = $1))) ORDER BY ae.occurred_at ASC, ae.id ASC LIMIT 500", [caseId]);
+        const result = await client.query("SELECT ae.id AS \"eventId\", ae.action AS \"eventType\", ae.resource_type AS \"resourceType\", ae.resource_id AS \"resourceId\", ae.occurred_at AS \"occurredAt\", ae.outcome, ae.metadata FROM audit_events ae WHERE ae.action IN ('create', 'import', 'import_domain_observations', 'import_observations', 'update', 'archive', 'delete_request', 'create_relationship', 'export', 'purge') AND ((ae.resource_type = 'case' AND ae.resource_id = $1) OR (ae.resource_type = 'evidence' AND ae.resource_id IN (SELECT id FROM evidence_items WHERE case_id = $1)) OR (ae.resource_type IN ('report', 'export') AND ae.resource_id IN (SELECT id FROM report_versions WHERE case_id = $1))) ORDER BY ae.occurred_at ASC, ae.id ASC LIMIT 500", [caseId]);
         await audit(client, userId, 'read_timeline', 'case', caseId);
         return { status: 200, body: { events: result.rows } };
       });
@@ -429,6 +429,14 @@ export async function routeCaseRequest({ method, pathname, body, userId, domainI
           await audit(client, userId, 'update', 'evidence', evidenceItem[2], 'denied');
           return notFound();
         }
+        const previous = await client.query(
+          'SELECT id, review_state AS "reviewState" FROM evidence_items WHERE id = $1 AND case_id = $2 FOR UPDATE',
+          [evidenceItem[2], caseId]
+        );
+        if (previous.rowCount !== 1) {
+          await audit(client, userId, 'update', 'evidence', evidenceItem[2], 'denied');
+          return notFound();
+        }
         const values = [evidenceItem[2], caseId];
         const assignments = [];
         for (const [key, value] of Object.entries(updates)) {
@@ -442,11 +450,12 @@ export async function routeCaseRequest({ method, pathname, body, userId, domainI
           'UPDATE evidence_items SET ' + assignments.join(', ') + ' WHERE id = $1 AND case_id = $2 RETURNING id, claim, category, review_state AS "reviewState", source_name AS "sourceName", source_url AS "sourceUrl", updated_at AS "updatedAt", limitations, correction_note AS "correctionNote", retracted_at AS "retractedAt"',
           values
         );
-        if (result.rowCount !== 1) {
-          await audit(client, userId, 'update', 'evidence', evidenceItem[2], 'denied');
-          return notFound();
+        const metadata = { changedFields: Object.keys(updates).sort() };
+        if (Object.hasOwn(updates, 'reviewState')) {
+          metadata.previousReviewState = previous.rows[0].reviewState;
+          metadata.nextReviewState = updates.reviewState;
         }
-        await audit(client, userId, 'update', 'evidence', evidenceItem[2]);
+        await audit(client, userId, 'update', 'evidence', evidenceItem[2], 'success', metadata);
         return { status: 200, body: { evidence: result.rows[0] } };
       });
     }
