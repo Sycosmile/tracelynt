@@ -6,14 +6,12 @@ import { createEvidenceReport } from './report.js';
 import { appOrigin, assertCsrf, beginLogin, clearAuthCookies, completeLogin, currentUser, getCsrfToken, loginBinding, logout, requestAccountDeletion } from './auth.js';
 import { routeCaseRequest } from './cases.js';
 import { isDomainInspectionEnabled } from './feature-flags.js';
+import { consumeRateLimit } from './rate-limit.js';
 
 const HOST = process.env.HOST || '127.0.0.1';
 const PORT = Number.parseInt(process.env.PORT || '8000', 10);
 const BODY_LIMIT = 2048;
 const REPORT_BODY_LIMIT = 96_000;
-const WINDOW_MS = 60_000;
-const REQUESTS_PER_WINDOW = 20;
-const rateWindows = new Map();
 const STATIC_FILES = new Map([
   ['/', { file: new URL('../../frontend/index.html', import.meta.url), type: 'text/html; charset=utf-8' }],
   ['/index.html', { file: new URL('../../frontend/index.html', import.meta.url), type: 'text/html; charset=utf-8' }],
@@ -21,32 +19,28 @@ const STATIC_FILES = new Map([
   ['/app.js', { file: new URL('../../frontend/app.js', import.meta.url), type: 'text/javascript; charset=utf-8' }]
 ]);
 
-function send(response, status, body) {
+function send(response, status, body, extraHeaders = {}) {
   response.writeHead(status, {
     'content-type': 'application/json; charset=utf-8',
     'cache-control': 'no-store',
     'x-content-type-options': 'nosniff',
     'content-security-policy': "default-src 'none'",
-    'referrer-policy': 'no-referrer'
+    'referrer-policy': 'no-referrer',
+    ...extraHeaders
   });
   response.end(JSON.stringify(body));
 }
 
-function allowedByRateLimit(address, limit = REQUESTS_PER_WINDOW) {
-  const now = Date.now();
-  if (rateWindows.size > 5000) {
-    for (const [key, value] of rateWindows) {
-      if (now - value.startedAt >= WINDOW_MS) rateWindows.delete(key);
-    }
+async function enforceRateLimit(response, key, limit) {
+  try {
+    const decision = await consumeRateLimit({ key, limit, windowMs: 60_000 });
+    if (decision.allowed) return true;
+    send(response, 429, { error: 'RATE_LIMITED' }, { 'retry-after': String(decision.retryAfter) });
+  } catch {
+    // In production the shared PostgreSQL store is mandatory. Do not fail open.
+    send(response, 503, { error: 'RATE_LIMIT_UNAVAILABLE' });
   }
-  const current = rateWindows.get(address);
-  if (!current || now - current.startedAt >= WINDOW_MS) {
-    rateWindows.set(address, { startedAt: now, count: 1 });
-    return true;
-  }
-  if (current.count >= limit) return false;
-  current.count += 1;
-  return true;
+  return false;
 }
 
 async function readJson(request, limit = BODY_LIMIT) {
@@ -86,7 +80,7 @@ export const server = http.createServer(async (request, response) => {
     return send(response, 200, { status: 'ok', service: 'tracelynt-domain-api' });
   }
   if (request.method === 'GET' && pathname === '/auth/login') {
-    if (!allowedByRateLimit((request.socket.remoteAddress || 'unknown') + ':auth', 10)) return send(response, 429, { error: 'RATE_LIMITED' });
+    if (!(await enforceRateLimit(response, 'auth:ip:' + (request.socket.remoteAddress || 'unknown'), 10))) return;
     try {
       const login = await beginLogin();
       response.writeHead(302, { location: login.url, 'set-cookie': login.setCookie, 'cache-control': 'no-store', 'referrer-policy': 'no-referrer' });
@@ -96,7 +90,7 @@ export const server = http.createServer(async (request, response) => {
     }
   }
   if (request.method === 'GET' && pathname === '/auth/callback') {
-    if (!allowedByRateLimit((request.socket.remoteAddress || 'unknown') + ':auth', 10)) return send(response, 429, { error: 'RATE_LIMITED' });
+    if (!(await enforceRateLimit(response, 'auth:ip:' + (request.socket.remoteAddress || 'unknown'), 10))) return;
     try {
       const incomingUrl = new URL(request.url || '/auth/callback', appOrigin());
       if (incomingUrl.pathname !== '/auth/callback') return send(response, 400, { error: 'LOGIN_FAILED' });
@@ -121,6 +115,7 @@ export const server = http.createServer(async (request, response) => {
     }
   }
   if (request.method === 'POST' && pathname === '/auth/logout') {
+    if (!(await enforceRateLimit(response, 'auth:ip:' + (request.socket.remoteAddress || 'unknown'), 10))) return;
     try {
       assertCsrf(request);
       const cookies = await logout(request);
@@ -131,10 +126,12 @@ export const server = http.createServer(async (request, response) => {
     }
   }
   if (request.method === 'DELETE' && pathname === '/api/account') {
-    if (!allowedByRateLimit((request.socket.remoteAddress || 'unknown') + ':workspace', 120)) return send(response, 429, { error: 'RATE_LIMITED' });
+    if (!(await enforceRateLimit(response, 'workspace:ip:' + (request.socket.remoteAddress || 'unknown'), 120))) return;
     try {
       const user = await currentUser(request);
       if (!user) return send(response, 401, { error: 'UNAUTHENTICATED' });
+      if (!(await enforceRateLimit(response, 'workspace:user:' + user.id, 120))) return;
+      if (!(await enforceRateLimit(response, 'workspace:user:' + user.id, 120))) return;
       assertCsrf(request);
       if (!String(request.headers['content-type'] || '').toLowerCase().includes('application/json')) return send(response, 415, { error: 'JSON_REQUIRED' });
       const body = await readJson(request, BODY_LIMIT);
@@ -155,7 +152,7 @@ export const server = http.createServer(async (request, response) => {
     }
   }
   if (pathname === '/api/cases' || pathname.startsWith('/api/cases/')) {
-    if (!allowedByRateLimit((request.socket.remoteAddress || 'unknown') + ':workspace', 120)) return send(response, 429, { error: 'RATE_LIMITED' });
+    if (!(await enforceRateLimit(response, 'workspace:ip:' + (request.socket.remoteAddress || 'unknown'), 120))) return;
     try {
       const user = await currentUser(request);
       if (!user) return send(response, 401, { error: 'UNAUTHENTICATED' });
@@ -179,7 +176,7 @@ export const server = http.createServer(async (request, response) => {
   }
   if (request.method === 'POST' && pathname === '/api/phone-number') {
     const address = request.socket.remoteAddress || 'unknown';
-    if (!allowedByRateLimit(address + ':phone', 30)) return send(response, 429, { error: 'RATE_LIMITED', message: 'Too many phone-format checks. Try again later.' });
+    if (!(await enforceRateLimit(response, 'phone:ip:' + address, 30))) return;
     if (!String(request.headers['content-type'] || '').toLowerCase().includes('application/json')) return send(response, 415, { error: 'JSON_REQUIRED' });
     try {
       const body = await readJson(request, BODY_LIMIT);
@@ -195,7 +192,7 @@ export const server = http.createServer(async (request, response) => {
   }
   if (!isDomainCheck && !isReport) return send(response, 404, { error: 'NOT_FOUND' });
   const address = request.socket.remoteAddress || 'unknown';
-  if (!allowedByRateLimit(address)) return send(response, 429, { error: 'RATE_LIMITED' });
+  if (!(await enforceRateLimit(response, 'public:ip:' + address, 20))) return;
   if (!String(request.headers['content-type'] || '').toLowerCase().includes('application/json')) {
     return send(response, 415, { error: 'JSON_REQUIRED' });
   }
