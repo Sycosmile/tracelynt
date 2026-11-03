@@ -20,6 +20,17 @@ test('initial schema contains the expected private-workspace tables and ownershi
   assert.doesNotMatch(sql, /^\s*(BEGIN|COMMIT)\s*;/im, 'runner owns transaction boundaries');
 });
 
+test('report snapshot migration enforces immutable content and one-way deletion markers', async () => {
+  const sql = await readFile(path.join(migrationDirectory, '005_immutable_report_snapshots.sql'), 'utf8');
+  assert.match(sql, /CREATE FUNCTION prevent_report_snapshot_mutation/);
+  assert.match(sql, /NEW\.report_data IS DISTINCT FROM OLD\.report_data/);
+  assert.match(sql, /NEW\.version_number IS DISTINCT FROM OLD\.version_number/);
+  assert.match(sql, /OLD\.deleted_at IS NOT NULL AND NEW\.deleted_at IS DISTINCT FROM OLD\.deleted_at/);
+  assert.match(sql, /CREATE TRIGGER report_versions_immutable/);
+  assert.match(sql, /BEFORE UPDATE ON report_versions/);
+  assert.doesNotMatch(sql, /^\s*(BEGIN|COMMIT)\s*;/im, 'runner owns transaction boundaries');
+});
+
 test('migration filenames follow the runner naming convention', async () => {
   const names = await readdir(migrationDirectory);
   const migrations = names.filter((name) => name.endsWith('.sql'));
