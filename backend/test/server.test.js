@@ -39,6 +39,27 @@ test('fails closed when domain inspection is not explicitly enabled and attested
   process.env.DOMAIN_INSPECTION_EGRESS_VERIFIED = 'true';
 });
 
+test('keeps domain inspection disabled when running on Render despite both opt-in flags', async () => {
+  const previousRender = process.env.RENDER;
+  process.env.RENDER = 'true';
+  process.env.DOMAIN_INSPECTION_ENABLED = 'true';
+  process.env.DOMAIN_INSPECTION_EGRESS_VERIFIED = 'true';
+  try {
+    const response = await fetch(baseUrl() + '/api/domain-check', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ domain: 'example.com' })
+    });
+    assert.equal(response.status, 503);
+    assert.equal((await response.json()).error, 'DOMAIN_INSPECTION_DISABLED');
+  } finally {
+    if (previousRender === undefined) delete process.env.RENDER;
+    else process.env.RENDER = previousRender;
+    process.env.DOMAIN_INSPECTION_ENABLED = 'true';
+    process.env.DOMAIN_INSPECTION_EGRESS_VERIFIED = 'true';
+  }
+});
+
 test('serves the interface and allowlisted static assets from one origin', async () => {
   const base = baseUrl();
   const page = await fetch(base + '/');

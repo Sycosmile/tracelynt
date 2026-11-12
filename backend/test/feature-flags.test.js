@@ -19,3 +19,19 @@ test('domain inspection requires both exact true values', () => {
     DOMAIN_INSPECTION_EGRESS_VERIFIED: 'true'
   }), true);
 });
+
+test('domain inspection stays disabled on Render even when both opt-in flags are true', () => {
+  assert.equal(isDomainInspectionEnabled({
+    RENDER: 'true',
+    DOMAIN_INSPECTION_ENABLED: 'true',
+    DOMAIN_INSPECTION_EGRESS_VERIFIED: 'true'
+  }), false);
+});
+
+test('Render detection requires the exact platform-provided true value', () => {
+  assert.equal(isDomainInspectionEnabled({
+    RENDER: 'TRUE',
+    DOMAIN_INSPECTION_ENABLED: 'true',
+    DOMAIN_INSPECTION_EGRESS_VERIFIED: 'true'
+  }), true);
+});
