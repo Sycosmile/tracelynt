@@ -7,6 +7,8 @@ import { normalizeProviderResult } from './provider-result.js';
 
 const RESERVED_SUFFIXES = ['.localhost', '.local', '.internal', '.test', '.invalid', '.example', '.onion'];
 const MAX_DOMAIN_LENGTH = 253;
+const MAX_CONCURRENT_INSPECTIONS = 4;
+let activeInspections = 0;
 
 export function normalizeDomain(input) {
   if (typeof input !== 'string') throw new TypeError('Domain must be a string.');
@@ -90,13 +92,14 @@ export function isPublicIp(address) {
   return false;
 }
 
-async function query(run, timeoutMs = 3000) {
+async function query(run, timeoutMs = 3000, cancel = null) {
   let timeout;
   try {
     const records = await Promise.race([
       Promise.resolve().then(run),
       new Promise((_, reject) => {
         timeout = setTimeout(() => {
+          try { cancel?.(); } catch { /* Cancellation is best-effort; the timeout remains authoritative. */ }
           const error = new Error('DNS lookup exceeded its time limit.');
           error.code = 'DNS_TIMEOUT';
           reject(error);
@@ -117,9 +120,11 @@ async function query(run, timeoutMs = 3000) {
 function getTlsCertificate(address, domain, timeoutMs = 4000) {
   return new Promise(resolve => {
     let settled = false;
+    let deadline;
     const finish = result => {
       if (settled) return;
       settled = true;
+      if (deadline) clearTimeout(deadline);
       resolve(result);
     };
     const socket = tls.connect({
@@ -129,6 +134,10 @@ function getTlsCertificate(address, domain, timeoutMs = 4000) {
       rejectUnauthorized: true,
       timeout: timeoutMs
     });
+    deadline = setTimeout(() => {
+      socket.destroy();
+      finish({ status: 'error', error: 'TLS_TIMEOUT' });
+    }, timeoutMs);
     socket.once('secureConnect', () => {
       const cert = socket.getPeerCertificate();
       finish({
@@ -171,17 +180,18 @@ function providerResult(providerId, check, retrievedAt, limitations) {
   });
 }
 
-export async function inspectDomain(input, dependencies = {}) {
+async function inspectDomainInternal(input, dependencies = {}) {
   const domain = normalizeDomain(input);
-  const resolver = dependencies.resolver || dns;
+  const createResolver = () => dependencies.resolver || new dns.Resolver();
   const tlsCheck = dependencies.tlsCheck || getTlsCertificate;
   const dnsTimeoutMs = Number.isInteger(dependencies.dnsTimeoutMs) && dependencies.dnsTimeoutMs >= 50 && dependencies.dnsTimeoutMs <= 30000
     ? dependencies.dnsTimeoutMs : 3000;
+  const resolve = method => {
+    const resolver = createResolver();
+    return query(() => resolver[method](domain), dnsTimeoutMs, () => resolver.cancel?.());
+  };
   const [a, aaaa, mx, txt] = await Promise.all([
-    query(() => resolver.resolve4(domain), dnsTimeoutMs),
-    query(() => resolver.resolve6(domain), dnsTimeoutMs),
-    query(() => resolver.resolveMx(domain), dnsTimeoutMs),
-    query(() => resolver.resolveTxt(domain), dnsTimeoutMs)
+    resolve('resolve4'), resolve('resolve6'), resolve('resolveMx'), resolve('resolveTxt')
   ]);
   const addresses = [...a.records, ...aaaa.records];
   if (addresses.some(address => !isPublicIp(address))) {
@@ -236,4 +246,19 @@ export async function inspectDomain(input, dependencies = {}) {
     ? 'partial'
     : usableProviderResults.length ? 'success' : 'unavailable';
   return { domain, retrievedAt, checks, observations, limitations, providerResults, overallOutcome };
+}
+
+export async function inspectDomain(input, dependencies = {}) {
+  if (activeInspections >= MAX_CONCURRENT_INSPECTIONS) {
+    const error = new Error('Domain inspection capacity is temporarily exhausted.');
+    error.code = 'INSPECTION_CAPACITY_EXCEEDED';
+    error.statusCode = 503;
+    throw error;
+  }
+  activeInspections += 1;
+  try {
+    return await inspectDomainInternal(input, dependencies);
+  } finally {
+    activeInspections -= 1;
+  }
 }
