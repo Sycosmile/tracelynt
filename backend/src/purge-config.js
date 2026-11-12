@@ -2,7 +2,7 @@ export function getPurgeConfig(env = process.env) {
   const rawDryRun = env.PURGE_DRY_RUN;
   let dryRun = true;
 
-  if (rawDryRun !== undefined && rawDryRun !== '') {
+  if (rawDryRun !== undefined) {
     if (rawDryRun !== 'true' && rawDryRun !== 'false') {
       throw new Error('PURGE_DRY_RUN must be exactly true or false.');
     }
