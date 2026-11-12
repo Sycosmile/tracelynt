@@ -37,7 +37,11 @@ A provider or network failure must not become a negative finding. Partial result
 - Bound request bodies and use connection timeouts.
 - Treat DNS/TLS results as point-in-time observations, not proof of business legitimacy or domain ownership.
 
-These checks reduce SSRF exposure but still require adversarial testing and independent review before public deployment. Network-level egress restrictions should be added as defense in depth in a deployed environment.
+These checks reduce SSRF exposure but are application-layer controls, not a network egress boundary. The inspection feature also requires both `DOMAIN_INSPECTION_ENABLED=true` and `DOMAIN_INSPECTION_EGRESS_VERIFIED=true`; keep it disabled unless the exact deployed service has an independently verified network policy.
+
+A deployment egress policy must block private, loopback, link-local, metadata, platform-private, and other special-use destinations at the network layer, while allowing only the DNS and public TLS traffic required by the feature. Verify direct socket connections from the deployed service identity; testing only the application route is insufficient. Static outbound IPs identify the source and do not restrict destination addresses. If the selected hosting plan cannot enforce destination filtering, do not attest it and do not enable domain inspection.
+
+No hosting environment or network-level egress boundary is currently configured or verified for this project.
 
 ## Private workspace and persistence
 
