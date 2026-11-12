@@ -170,8 +170,10 @@ test('does not attempt TLS when DNS has no public IPv4 address', async () => {
 
 
 
-test('bounds DNS resolver latency and preserves other provider results', async () => {
+test('bounds DNS resolver latency, cancels timed-out resolver work, and preserves other results', async () => {
+  let cancelled = false;
   const resolver = {
+    cancel: () => { cancelled = true; },
     resolve4: async () => ['8.8.8.8'],
     resolve6: async () => new Promise(() => {}),
     resolveMx: async () => [{ exchange: 'mail.example.com', priority: 10 }],
@@ -187,6 +189,7 @@ test('bounds DNS resolver latency and preserves other provider results', async (
   assert.equal(result.checks.dns.mx.status, 'ok');
   assert.equal(result.overallOutcome, 'partial');
   assert.equal(result.providerResults[1].outcome, 'unavailable');
+  assert.equal(cancelled, true);
 });
 
 test('uses the safe default DNS timeout for out-of-range configuration', async () => {
@@ -270,4 +273,44 @@ test('rejects additional IPv4-mapped and translated IPv6 representations', () =>
   ]) {
     assert.equal(isPublicIp(address), false, address);
   }
+});
+
+
+test('caps simultaneous domain inspections and releases capacity after completion', async () => {
+  const deferred = () => {
+    let resolve;
+    const promise = new Promise(done => { resolve = done; });
+    return { promise, resolve };
+  };
+  const gates = {
+    resolve4: deferred(),
+    resolve6: deferred(),
+    resolveMx: deferred(),
+    resolveTxt: deferred()
+  };
+  const resolver = Object.fromEntries(Object.entries(gates).map(([method, gate]) => [
+    method, () => gate.promise
+  ]));
+  const dependencies = {
+    resolver,
+    dnsTimeoutMs: 10_000,
+    tlsCheck: async () => ({ status: 'ok', authorized: true })
+  };
+  const active = Array.from({ length: 4 }, () => inspectDomain('example.com', dependencies));
+
+  await assert.rejects(
+    inspectDomain('another.example.com', dependencies),
+    error => error.statusCode === 503 && error.code === 'INSPECTION_CAPACITY_EXCEEDED'
+  );
+
+  gates.resolve4.resolve(['8.8.8.8']);
+  gates.resolve6.resolve([]);
+  gates.resolveMx.resolve([]);
+  gates.resolveTxt.resolve([]);
+  const results = await Promise.all(active);
+  assert.equal(results.length, 4);
+  assert.ok(results.every(result => result.checks.tls.status === 'ok'));
+
+  const afterRelease = await inspectDomain('another.example.com', dependencies);
+  assert.equal(afterRelease.domain, 'another.example.com');
 });
