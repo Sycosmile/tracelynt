@@ -82,6 +82,7 @@ Every case, evidence, and report query is scoped to the authenticated owner. Unk
 ## Security and limitations
 
 - Domain checks reject URLs, paths, ports, IP literals, and DNS results that are non-public or special-use; arbitrary web pages are not fetched.
+- Rate limits use the socket peer address for direct/local deployments. On Render (`RENDER=true`), they use only a single syntactically valid `CF-Connecting-IP` value supplied through Render's Cloudflare edge; `X-Forwarded-For` is never used. Missing or malformed trusted client-IP headers share a fail-closed `unknown` rate-limit bucket.
 - External evidence URLs are stored as references and never fetched by the case API.
 - Report versions are immutable snapshots; later evidence corrections do not silently rewrite previous reports.
 - The rate limiter is process-local and not sufficient for production abuse control.
