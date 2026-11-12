@@ -37,7 +37,7 @@ Do not substitute an arbitrary default period. Do not run a purge against a prod
 
    The preview reports counts only and does not mutate rows. If PURGE_OWNER_IDS is omitted, the preview covers all pending cases/accounts and expired/revoked sessions in the configured database.
 4. Compare the preview with the approved deletion request and expected counts. Investigate unexpected or zero counts before proceeding.
-5. For an approved execution, remove PURGE_DRY_RUN, set CONFIRM_PURGE_PENDING_CASES=YES, retain the reviewed owner scope where possible, and run the command once.
+5. For an approved execution, explicitly set PURGE_DRY_RUN=false and CONFIRM_PURGE_PENDING_CASES=YES, retain the reviewed owner scope where possible, and run the command once. The default when PURGE_DRY_RUN is omitted is read-only; values other than exactly true or false are rejected.
 6. Record the operator, timestamp, database environment, approved scope, preview counts, execution counts, and any exceptions in the organization's controlled change record.
 7. Verify backup, replica, export, cache, and log deletion separately using the procedures of those systems. The application command cannot verify those systems.
 
