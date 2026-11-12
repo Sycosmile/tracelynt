@@ -41,6 +41,24 @@ Primary risks: broken object-level authorization, SSRF, injection and unsafe ren
 - Add network-level egress restrictions as defense in depth.
 - Review request, response-size, connection, and execution-time limits.
 
+### Network egress isolation gate
+
+Application-layer SSRF checks are not a network egress boundary. They reduce the risk of this inspection path reaching private destinations, but they do not constrain other code paths, compromised dependencies, or a process-level compromise.
+
+Domain inspection requires both `DOMAIN_INSPECTION_ENABLED=true` and `DOMAIN_INSPECTION_EGRESS_VERIFIED=true`. Keep inspection disabled unless the exact deployed service has an independently verified outbound policy. Do not set the attestation flag merely because the application's IP validation tests pass.
+
+Before attesting a deployment, verify at the network layer that the service cannot connect to:
+- IPv4 loopback, RFC 1918, link-local, carrier-grade NAT, documentation, multicast, and reserved ranges.
+- IPv6 loopback, unique-local, link-local, IPv4-mapped/translated, transition, and other special-use ranges.
+- Cloud instance metadata endpoints and platform-private service names or addresses, including private database and sibling-service endpoints that the inspection process does not need.
+- Any destination port outside the explicitly approved egress policy.
+
+Test direct TCP/TLS connections from the deployed service identity, not only requests through the domain-inspection route. Record the provider, plan, service/environment identity, effective policy, test date, and observed results. A static outbound IP or inbound IP allowlist is not an outbound destination firewall.
+
+Free hosting constraints matter. Render documents that free web services can initiate private-network requests to same-region data stores and paid services; its private-network environment blocking is available on Pro workspaces and higher. Railway's published networking documentation describes outbound connectivity and Pro-only static outbound IPs, which provide source-IP stability rather than destination filtering. Do not treat either feature as egress isolation. If the selected free plan cannot enforce the required deny policy, keep domain inspection disabled; do not substitute an application flag or proxy convention for a network control.
+
+No production egress boundary has been verified for this repository. Use synthetic data only and leave the egress attestation unset until independent deployment evidence exists.
+
 ### Secrets and dependencies
 
 - Commit placeholders only; never real API keys or tokens.
