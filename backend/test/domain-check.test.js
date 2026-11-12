@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { normalizeDomain, isPublicIp, inspectDomain } from '../src/domain-check.js';
+import { EventEmitter } from 'node:events';
+import { normalizeDomain, isPublicIp, inspectDomain, getTlsCertificate } from '../src/domain-check.js';
 
 test('normalizes case, trailing dot, and internationalized domain names', () => {
   assert.equal(normalizeDomain(' Example.COM. '), 'example.com');
@@ -313,4 +314,15 @@ test('caps simultaneous domain inspections and releases capacity after completio
 
   const afterRelease = await inspectDomain('another.example.com', dependencies);
   assert.equal(afterRelease.domain, 'another.example.com');
+});
+
+
+test('enforces a hard TLS deadline and destroys a socket that never completes', async () => {
+  let destroyed = false;
+  const socket = new EventEmitter();
+  socket.destroy = () => { destroyed = true; };
+  socket.end = () => {};
+  const result = await getTlsCertificate('8.8.8.8', 'example.com', 25, () => socket);
+  assert.deepEqual(result, { status: 'error', error: 'TLS_TIMEOUT' });
+  assert.equal(destroyed, true);
 });
