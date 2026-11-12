@@ -70,3 +70,51 @@ test('shared production mode rejects decisions when PostgreSQL is unavailable', 
     /DATABASE_URL is required/
   );
 });
+
+
+test('caps shared rate-limit storage and reclaims expired buckets before admitting new keys', { skip: !process.env.DATABASE_URL }, async () => {
+  const prefix = 'capacity-test:' + randomUUID() + ':';
+  const keys = [prefix + 'one', prefix + 'two', prefix + 'three', prefix + 'overflow'];
+  const hashes = keys.map(createHashForTest);
+  const pool = getPool();
+
+  try {
+    for (const key of keys.slice(0, 3)) {
+      const decision = await consumeRateLimit({
+        key, limit: 5, windowMs: 60_000, sharedStore: true, maxBuckets: 3
+      });
+      assert.equal(decision.allowed, true);
+    }
+
+    await assert.rejects(
+      consumeRateLimit({
+        key: keys[3], limit: 5, windowMs: 60_000, sharedStore: true, maxBuckets: 3
+      }),
+      error => error.message.includes('RATE_LIMIT_BUCKET_CAPACITY_REACHED')
+    );
+
+    const full = await pool.query(
+      'SELECT count(*)::integer AS bucket_count FROM rate_limit_buckets WHERE key_hash = ANY($1::bytea[])',
+      [hashes.slice(0, 3)]
+    );
+    assert.equal(full.rows[0].bucket_count, 3);
+
+    await pool.query(
+      'UPDATE rate_limit_buckets SET expires_at = clock_timestamp() - interval \'1 second\' WHERE key_hash = ANY($1::bytea[])',
+      [hashes.slice(0, 3)]
+    );
+
+    const admitted = await consumeRateLimit({
+      key: keys[3], limit: 5, windowMs: 60_000, sharedStore: true, maxBuckets: 3
+    });
+    assert.equal(admitted.allowed, true);
+
+    const remaining = await pool.query(
+      'SELECT count(*)::integer AS bucket_count FROM rate_limit_buckets WHERE key_hash = ANY($1::bytea[])',
+      [hashes]
+    );
+    assert.equal(remaining.rows[0].bucket_count, 1);
+  } finally {
+    await pool.query('DELETE FROM rate_limit_buckets WHERE key_hash = ANY($1::bytea[])', [hashes]);
+  }
+});
