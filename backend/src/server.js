@@ -7,8 +7,9 @@ import { appOrigin, assertCsrf, beginLogin, clearAuthCookies, completeLogin, cur
 import { routeCaseRequest } from './cases.js';
 import { isDomainInspectionEnabled } from './feature-flags.js';
 import { consumeRateLimit } from './rate-limit.js';
+import { getListenHost } from './listen-config.js';
 
-const HOST = process.env.HOST || '127.0.0.1';
+const HOST = getListenHost();
 const PORT = Number.parseInt(process.env.PORT || '8000', 10);
 const BODY_LIMIT = 2048;
 const REPORT_BODY_LIMIT = 96_000;
