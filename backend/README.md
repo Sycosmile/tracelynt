@@ -88,6 +88,7 @@ Every case, evidence, and report query is scoped to the authenticated owner. Unk
 ## Security and limitations
 
 - Domain checks reject URLs, paths, ports, IP literals, and DNS results that are non-public or special-use; arbitrary web pages are not fetched.
+- Rate limits use the socket peer address for direct/local deployments. On Render (`RENDER=true`), they use only a single syntactically valid `CF-Connecting-IP` value supplied through Render's Cloudflare edge; `X-Forwarded-For` is never used. Missing or malformed trusted client-IP headers share a fail-closed `unknown` rate-limit bucket.
 - Domain inspection requires both `DOMAIN_INSPECTION_ENABLED=true` and `DOMAIN_INSPECTION_EGRESS_VERIFIED=true`. It is additionally hard-disabled when Render's platform-provided `RENDER=true` is present because Render's documented networking features do not provide the required per-service outbound destination firewall. Do not remove this guard without independently verified network-level egress controls.
 - External evidence URLs are stored as references and never fetched by the case API.
 - HTTP ingress is bounded to 16 KiB of headers, 50 header fields, 10 seconds for headers, 15 seconds to receive a request, 5 seconds of keep-alive, 100 requests per socket, and 100 concurrent connections per process. Oversized headers receive a 431 response and the connection is closed.
