@@ -37,7 +37,13 @@ A provider or network failure must not become a negative finding. Partial result
 - Bound request bodies and use connection timeouts.
 - Treat DNS/TLS results as point-in-time observations, not proof of business legitimacy or domain ownership.
 
-These checks reduce SSRF exposure but still require adversarial testing and independent review before public deployment. Network-level egress restrictions should be added as defense in depth in a deployed environment.
+These checks reduce SSRF exposure but are application-layer controls, not a network egress boundary. The inspection feature also requires both `DOMAIN_INSPECTION_ENABLED=true` and `DOMAIN_INSPECTION_EGRESS_VERIFIED=true`; keep it disabled unless the exact deployed service has an independently verified network policy.
+
+A deployment egress policy must block private, loopback, link-local, metadata, platform-private, and other special-use destinations at the network layer, while allowing only the DNS and public TLS traffic required by the feature. Verify direct socket connections from the deployed service identity; testing only the application route is insufficient. Static outbound IPs identify the source and do not restrict destination addresses.
+
+Render is the selected hosting target. Render Free web services can initiate private-network connections to same-region data stores and paid services. Render's Pro environment isolation blocks private-network traffic across environment boundaries only; services within the same environment can still communicate, and the feature does not filter public-internet destinations. Dedicated outbound IPs identify the source, not allowed destinations. These documented controls are not a general outbound destination firewall. On the documented Render networking feature set, a complete egress boundary for domain inspection is not established; keep domain inspection disabled unless an additional independently verifiable network control becomes available.
+
+No Render service has been deployed or had its egress policy verified for this project.
 
 ## Private workspace and persistence
 

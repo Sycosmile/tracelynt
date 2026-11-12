@@ -41,6 +41,24 @@ Primary risks: broken object-level authorization, SSRF, injection and unsafe ren
 - Add network-level egress restrictions as defense in depth.
 - Review request, response-size, connection, and execution-time limits.
 
+### Network egress isolation gate
+
+Application-layer SSRF checks are not a network egress boundary. They reduce the risk of this inspection path reaching private destinations, but they do not constrain other code paths, compromised dependencies, or a process-level compromise.
+
+Domain inspection requires both `DOMAIN_INSPECTION_ENABLED=true` and `DOMAIN_INSPECTION_EGRESS_VERIFIED=true`. Keep inspection disabled unless the exact deployed service has an independently verified outbound policy. Do not set the attestation flag merely because the application's IP validation tests pass.
+
+Before attesting a deployment, verify at the network layer that the service cannot connect to:
+- IPv4 loopback, RFC 1918, link-local, carrier-grade NAT, documentation, multicast, and reserved ranges.
+- IPv6 loopback, unique-local, link-local, IPv4-mapped/translated, transition, and other special-use ranges.
+- Cloud instance metadata endpoints and platform-private service names or addresses, including private database and sibling-service endpoints that the inspection process does not need.
+- Any destination port outside the explicitly approved egress policy.
+
+Test direct TCP/TLS connections from the deployed service identity, not only requests through the domain-inspection route. Record the provider, plan, service/environment identity, effective policy, test date, and observed results. A static outbound IP or inbound IP allowlist is not an outbound destination firewall.
+
+Render-specific constraint: Render Free web services cannot receive private-network traffic, but they can initiate private-network requests to same-region data stores and paid services. Render's Pro-and-higher environment isolation blocks private-network traffic crossing an environment boundary; it does not block communication between services inside the same environment, does not filter public-internet destinations, and is not a general outbound destination firewall. Render's dedicated outbound IP feature identifies the source address and is not destination filtering. Render's documented platform features do not provide a general per-service outbound destination ACL. Therefore, neither Render Free nor the documented Pro networking controls establish the required complete egress boundary for this inspection workload. Keep domain inspection disabled on Render unless Render provides and the operator independently verifies an additional network control that enforces the full destination deny policy.
+
+No production egress boundary has been verified for this repository. Use synthetic data only and leave the egress attestation unset until independent deployment evidence exists.
+
 ### Secrets and dependencies
 
 - Commit placeholders only; never real API keys or tokens.
