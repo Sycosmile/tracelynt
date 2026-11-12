@@ -1,4 +1,5 @@
 import pg from 'pg';
+import { getDatabasePoolOptions } from './db-pool-config.js';
 
 const { Pool } = pg;
 let pool;
@@ -8,10 +9,7 @@ export function getPool() {
   if (!pool) {
     pool = new Pool({
       connectionString: process.env.DATABASE_URL,
-      max: Number.parseInt(process.env.DB_POOL_MAX || '10', 10),
-      idleTimeoutMillis: 30_000,
-      connectionTimeoutMillis: 5_000,
-      application_name: 'tracelynt-api'
+      ...getDatabasePoolOptions()
     });
     pool.on('error', () => {
       // Do not log driver errors: connection errors may contain infrastructure details.
