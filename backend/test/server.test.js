@@ -203,12 +203,12 @@ test('rejects oversized HTTP headers with 431 and closes the connection', async 
     let response = '';
     socket.setTimeout(3_000, () => socket.destroy(new Error('Header rejection timed out.')));
     socket.once('connect', () => {
-      socket.write('GET /health HTTP/1.1\\r\\nHost: localhost\\r\\nX-Oversized: ' + 'a'.repeat(17 * 1024) + '\\r\\n\\r\\n');
+      socket.write('GET /health HTTP/1.1\r\nHost: localhost\r\nX-Oversized: ' + 'a'.repeat(17 * 1024) + '\r\n\r\n');
     });
     socket.on('data', chunk => { response += chunk.toString('latin1'); });
     socket.once('end', () => resolve(response));
     socket.once('error', reject);
   });
-  assert.match(rawResponse, /^HTTP\\/1\\.1 431 Request Header Fields Too Large/);
+  assert.match(rawResponse, /^HTTP\/1\.1 431 Request Header Fields Too Large/);
   assert.match(rawResponse, /Connection: close/i);
 });
