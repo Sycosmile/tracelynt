@@ -59,6 +59,12 @@ Use the matching hostname consistently; localhost and 127.0.0.1 are different or
 
 The login flow uses state, nonce, PKCE, short-lived server-side login transactions, and a browser-binding cookie. The server creates a high-entropy opaque session token, stores only its SHA-256 hash, and sends the token in an HttpOnly, SameSite cookie (Secure in production). Sessions expire after 12 hours. State-changing cookie-authenticated requests require a same-origin Origin/Referer check and an HMAC-derived CSRF token from GET /api/session in the X-CSRF-Token header.
 
+## Provider adapter boundary
+
+Provider responses are normalized by `src/provider-result.js`. The `src/provider-adapter.js` execution boundary accepts an injected adapter, passes it an abort signal, applies a configurable timeout (1–30 seconds; 5 seconds by default), checks that the returned provider ID matches the adapter, and converts timeout, thrown-error, and invalid-result cases into explicit outcomes without exposing raw exception details. Partial and no-record outcomes remain distinct.
+
+This is an execution contract, not a live provider integration. No provider credentials, network clients, adapters, or automatic provider-to-case imports are configured. Adapter implementations must independently enforce destination allowlists, network egress restrictions, response-size limits, credential handling, provider terms, and data minimization. The timeout abort signal is cooperative; an adapter's transport must honor it.
+
 ## Endpoints
 
 Public prototype:
