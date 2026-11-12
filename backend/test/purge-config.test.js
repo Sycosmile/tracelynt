@@ -8,7 +8,7 @@ test('pending-case purge defaults to read-only dry-run', () => {
 });
 
 test('pending-case purge rejects ambiguous dry-run settings', () => {
-  for (const value of ['yes', 'no', '1', '0', 'TRUE', 'false ']) {
+  for (const value of ['', 'yes', 'no', '1', '0', 'TRUE', 'false ']) {
     assert.throws(
       () => getPurgeConfig({ PURGE_DRY_RUN: value }),
       /PURGE_DRY_RUN must be exactly true or false/
