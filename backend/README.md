@@ -32,6 +32,12 @@ Then apply migrations and run checks:
 
 Do not expose PostgreSQL beyond localhost. Change the Compose development password before using any database that contains data you want to keep. The migration runner requires psql; it applies each migration and its checksum ledger entry in a transaction.
 
+## Render web-service binding
+
+When the Render platform sets `RENDER=true`, the backend binds to `0.0.0.0` so Render's public web-service proxy can reach it. Outside Render, the default remains `127.0.0.1`; an explicit `HOST` value is respected for local or other-host deployments. Render supplies the runtime `PORT` value to the start command.
+
+Configure Render's health-check path as `/health`. This endpoint is a lightweight liveness check and intentionally does not require PostgreSQL or an external provider to be available. A successful health response does not mean private-workspace database features or authentication are ready.
+
 ## OIDC configuration
 
 Configure an OIDC provider that supports discovery and authorization-code flow. Set:
