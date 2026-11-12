@@ -32,6 +32,10 @@ Then apply migrations and run checks:
 
 Do not expose PostgreSQL beyond localhost. Change the Compose development password before using any database that contains data you want to keep. The migration runner requires psql; it applies each migration and its checksum ledger entry in a transaction.
 
+## PostgreSQL connection limits
+
+The API uses a PostgreSQL pool of 10 connections by default. `DB_POOL_MAX` may be set to an integer from 1 to 20; invalid or excessive values prevent pool creation rather than silently falling back. Connections have a 5-second acquisition timeout, idle connections are closed after 30 seconds, and PostgreSQL statements and idle transactions are each limited to 15 seconds. Tune these limits only after measuring the database plan's actual connection budget and query workload.
+
 ## OIDC configuration
 
 Configure an OIDC provider that supports discovery and authorization-code flow. Set:
