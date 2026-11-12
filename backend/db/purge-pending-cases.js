@@ -67,7 +67,7 @@ async function main() {
       await client.query('DELETE FROM oidc_login_transactions WHERE expires_at <= now()');
     }
     await client.query('COMMIT');
-    process.stdout.write('Purged pending cases: ' + pending.rowCount + '; pending accounts: ' + accounts.rowCount + '; expired sessions/login transactions removed.\\n');
+    process.stdout.write('Purged pending cases: ' + pending.rowCount + '; pending accounts: ' + accounts.rowCount + '; expired sessions/login transactions removed.\n');
   } catch (error) {
     await client.query('ROLLBACK').catch(() => {});
     throw error;
@@ -78,6 +78,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  process.stderr.write('Purge failed: ' + error.message + '\\n');
+  process.stderr.write('Purge failed: ' + error.message + '\n');
   process.exitCode = 1;
 });
