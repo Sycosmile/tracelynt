@@ -1,4 +1,5 @@
 import http from 'node:http';
+import { getClientAddress } from './client-address.js';
 import { readFile } from 'node:fs/promises';
 import { inspectDomain } from './domain-check.js';
 import { inspectPhoneNumber } from './phone-number.js';
@@ -80,7 +81,7 @@ export const server = http.createServer(async (request, response) => {
     return send(response, 200, { status: 'ok', service: 'tracelynt-domain-api' });
   }
   if (request.method === 'GET' && pathname === '/auth/login') {
-    if (!(await enforceRateLimit(response, 'auth:ip:' + (request.socket.remoteAddress || 'unknown'), 10))) return;
+    if (!(await enforceRateLimit(response, 'auth:ip:' + getClientAddress(request), 10))) return;
     try {
       const login = await beginLogin();
       response.writeHead(302, { location: login.url, 'set-cookie': login.setCookie, 'cache-control': 'no-store', 'referrer-policy': 'no-referrer' });
@@ -90,7 +91,7 @@ export const server = http.createServer(async (request, response) => {
     }
   }
   if (request.method === 'GET' && pathname === '/auth/callback') {
-    if (!(await enforceRateLimit(response, 'auth:ip:' + (request.socket.remoteAddress || 'unknown'), 10))) return;
+    if (!(await enforceRateLimit(response, 'auth:ip:' + getClientAddress(request), 10))) return;
     try {
       const incomingUrl = new URL(request.url || '/auth/callback', appOrigin());
       if (incomingUrl.pathname !== '/auth/callback') return send(response, 400, { error: 'LOGIN_FAILED' });
@@ -105,7 +106,7 @@ export const server = http.createServer(async (request, response) => {
     }
   }
   if (request.method === 'GET' && pathname === '/api/session') {
-    if (!(await enforceRateLimit(response, 'auth:ip:' + (request.socket.remoteAddress || 'unknown'), 120))) return;
+    if (!(await enforceRateLimit(response, 'auth:ip:' + getClientAddress(request), 120))) return;
     try {
       const user = await currentUser(request);
       return send(response, 200, user
@@ -116,7 +117,7 @@ export const server = http.createServer(async (request, response) => {
     }
   }
   if (request.method === 'POST' && pathname === '/auth/logout') {
-    if (!(await enforceRateLimit(response, 'auth:ip:' + (request.socket.remoteAddress || 'unknown'), 10))) return;
+    if (!(await enforceRateLimit(response, 'auth:ip:' + getClientAddress(request), 10))) return;
     try {
       assertCsrf(request);
       const cookies = await logout(request);
@@ -127,7 +128,7 @@ export const server = http.createServer(async (request, response) => {
     }
   }
   if (request.method === 'DELETE' && pathname === '/api/account') {
-    if (!(await enforceRateLimit(response, 'workspace:ip:' + (request.socket.remoteAddress || 'unknown'), 120))) return;
+    if (!(await enforceRateLimit(response, 'workspace:ip:' + getClientAddress(request), 120))) return;
     try {
       const user = await currentUser(request);
       if (!user) return send(response, 401, { error: 'UNAUTHENTICATED' });
@@ -152,7 +153,7 @@ export const server = http.createServer(async (request, response) => {
     }
   }
   if (pathname === '/api/cases' || pathname.startsWith('/api/cases/')) {
-    if (!(await enforceRateLimit(response, 'workspace:ip:' + (request.socket.remoteAddress || 'unknown'), 120))) return;
+    if (!(await enforceRateLimit(response, 'workspace:ip:' + getClientAddress(request), 120))) return;
     try {
       const user = await currentUser(request);
       if (!user) return send(response, 401, { error: 'UNAUTHENTICATED' });
@@ -176,7 +177,7 @@ export const server = http.createServer(async (request, response) => {
     }
   }
   if (request.method === 'POST' && pathname === '/api/phone-number') {
-    const address = request.socket.remoteAddress || 'unknown';
+    const address = getClientAddress(request);
     if (!(await enforceRateLimit(response, 'phone:ip:' + address, 30))) return;
     if (!String(request.headers['content-type'] || '').toLowerCase().includes('application/json')) return send(response, 415, { error: 'JSON_REQUIRED' });
     try {
@@ -192,7 +193,7 @@ export const server = http.createServer(async (request, response) => {
     return send(response, 503, { error: 'DOMAIN_INSPECTION_DISABLED', message: 'Domain inspection is disabled until the deployed egress security boundary has been independently verified.' });
   }
   if (!isDomainCheck && !isReport) return send(response, 404, { error: 'NOT_FOUND' });
-  const address = request.socket.remoteAddress || 'unknown';
+  const address = getClientAddress(request);
   if (!(await enforceRateLimit(response, 'public:ip:' + address, 20))) return;
   if (!String(request.headers['content-type'] || '').toLowerCase().includes('application/json')) {
     return send(response, 415, { error: 'JSON_REQUIRED' });
