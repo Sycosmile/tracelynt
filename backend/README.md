@@ -82,6 +82,7 @@ Every case, evidence, and report query is scoped to the authenticated owner. Unk
 ## Security and limitations
 
 - Domain checks reject URLs, paths, ports, IP literals, and DNS results that are non-public or special-use; arbitrary web pages are not fetched.
+- Domain inspection requires both `DOMAIN_INSPECTION_ENABLED=true` and `DOMAIN_INSPECTION_EGRESS_VERIFIED=true`. It is additionally hard-disabled when Render's platform-provided `RENDER=true` is present because Render's documented networking features do not provide the required per-service outbound destination firewall. Do not remove this guard without independently verified network-level egress controls.
 - External evidence URLs are stored as references and never fetched by the case API.
 - Report versions are immutable snapshots; later evidence corrections do not silently rewrite previous reports.
 - The rate limiter is process-local and not sufficient for production abuse control.
