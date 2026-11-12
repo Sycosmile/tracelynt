@@ -83,6 +83,8 @@ Every case, evidence, and report query is scoped to the authenticated owner. Unk
 
 - Domain checks reject URLs, paths, ports, IP literals, and DNS results that are non-public or special-use; arbitrary web pages are not fetched.
 - External evidence URLs are stored as references and never fetched by the case API.
+- HTTP ingress is bounded to 16 KiB of headers, 50 header fields, 10 seconds for headers, 15 seconds to receive a request, 5 seconds of keep-alive, 100 requests per socket, and 100 concurrent connections per process. Oversized headers receive a 431 response and the connection is closed.
+- JSON request bodies are capped at 2 KiB for ordinary endpoints and 96 KiB for report and case payloads. These are application-level limits; the hosting proxy should enforce compatible or stricter limits.
 - Report versions are immutable snapshots; later evidence corrections do not silently rewrite previous reports.
 - Production rate limits use shared PostgreSQL buckets; local development uses a bounded process-local fallback. Neither replaces network-level abuse controls.
 - Domain inspection uses independently cancellable DNS resolvers, a hard TLS deadline that destroys stalled sockets, and a per-process concurrency ceiling of four. These application controls do not replace network egress isolation.

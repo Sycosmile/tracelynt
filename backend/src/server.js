@@ -12,6 +12,13 @@ const HOST = process.env.HOST || '127.0.0.1';
 const PORT = Number.parseInt(process.env.PORT || '8000', 10);
 const BODY_LIMIT = 2048;
 const REPORT_BODY_LIMIT = 96_000;
+const MAX_HEADER_SIZE = 16 * 1024;
+const MAX_HEADER_COUNT = 50;
+const MAX_CONNECTIONS = 100;
+const HEADERS_TIMEOUT_MS = 10_000;
+const REQUEST_TIMEOUT_MS = 15_000;
+const KEEP_ALIVE_TIMEOUT_MS = 5_000;
+const MAX_REQUESTS_PER_SOCKET = 100;
 const STATIC_FILES = new Map([
   ['/', { file: new URL('../../frontend/index.html', import.meta.url), type: 'text/html; charset=utf-8' }],
   ['/index.html', { file: new URL('../../frontend/index.html', import.meta.url), type: 'text/html; charset=utf-8' }],
@@ -44,11 +51,19 @@ async function enforceRateLimit(response, key, limit) {
 }
 
 async function readJson(request, limit = BODY_LIMIT) {
+  const declaredLength = request.headers['content-length'];
+  if (declaredLength !== undefined && Number(declaredLength) > limit) {
+    request.resume();
+    throw Object.assign(new Error('Request body too large.'), { statusCode: 413 });
+  }
   const chunks = [];
   let total = 0;
   for await (const chunk of request) {
     total += chunk.length;
-    if (total > limit) throw Object.assign(new Error('Request body too large.'), { statusCode: 413 });
+    if (total > limit) {
+      request.resume();
+      throw Object.assign(new Error('Request body too large.'), { statusCode: 413 });
+    }
     chunks.push(chunk);
   }
   try {
@@ -58,7 +73,7 @@ async function readJson(request, limit = BODY_LIMIT) {
   }
 }
 
-export const server = http.createServer(async (request, response) => {
+export const server = http.createServer({ maxHeaderSize: MAX_HEADER_SIZE }, async (request, response) => {
   const pathname = new URL(request.url || '/', 'http://localhost').pathname;
   if (request.method === 'GET' && STATIC_FILES.has(pathname)) {
     try {
@@ -216,6 +231,21 @@ export const server = http.createServer(async (request, response) => {
     const message = status === 413 || status === 400 ? error.message : 'Request failed.';
     return send(response, status, { error: 'DOMAIN_CHECK_FAILED', message });
   }
+});
+
+server.headersTimeout = HEADERS_TIMEOUT_MS;
+server.requestTimeout = REQUEST_TIMEOUT_MS;
+server.keepAliveTimeout = KEEP_ALIVE_TIMEOUT_MS;
+server.maxRequestsPerSocket = MAX_REQUESTS_PER_SOCKET;
+server.maxHeadersCount = MAX_HEADER_COUNT;
+server.maxConnections = MAX_CONNECTIONS;
+
+server.on('clientError', (error, socket) => {
+  if (!socket.writable) return;
+  const status = error.code === 'HPE_HEADER_OVERFLOW'
+    ? '431 Request Header Fields Too Large'
+    : '400 Bad Request';
+  socket.end(`HTTP/1.1 ${status}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`);
 });
 
 if (process.env.NODE_ENV !== 'test') {

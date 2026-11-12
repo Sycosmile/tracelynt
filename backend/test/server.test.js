@@ -1,5 +1,6 @@
 import test, { before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import net from 'node:net';
 
 process.env.NODE_ENV = 'test';
 process.env.DOMAIN_INSPECTION_ENABLED = 'true';
@@ -183,4 +184,31 @@ test('does not serve path traversal or unlisted static-file requests', async () 
     assert.equal(response.status, 404, path);
     assert.equal((await response.json()).error, 'NOT_FOUND', path);
   }
+});
+
+
+test('configures bounded HTTP parser, request, keep-alive, and connection resources', () => {
+  assert.equal(server.headersTimeout, 10_000);
+  assert.equal(server.requestTimeout, 15_000);
+  assert.equal(server.keepAliveTimeout, 5_000);
+  assert.equal(server.maxRequestsPerSocket, 100);
+  assert.equal(server.maxHeadersCount, 50);
+  assert.equal(server.maxConnections, 100);
+});
+
+test('rejects oversized HTTP headers with 431 and closes the connection', async () => {
+  const address = server.address();
+  const rawResponse = await new Promise((resolve, reject) => {
+    const socket = net.createConnection({ host: '127.0.0.1', port: address.port });
+    let response = '';
+    socket.setTimeout(3_000, () => socket.destroy(new Error('Header rejection timed out.')));
+    socket.once('connect', () => {
+      socket.write('GET /health HTTP/1.1\r\nHost: localhost\r\nX-Oversized: ' + 'a'.repeat(17 * 1024) + '\r\n\r\n');
+    });
+    socket.on('data', chunk => { response += chunk.toString('latin1'); });
+    socket.once('end', () => resolve(response));
+    socket.once('error', reject);
+  });
+  assert.match(rawResponse, /^HTTP\/1\.1 431 Request Header Fields Too Large/);
+  assert.match(rawResponse, /Connection: close/i);
 });
