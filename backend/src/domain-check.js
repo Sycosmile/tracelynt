@@ -117,7 +117,7 @@ async function query(run, timeoutMs = 3000, cancel = null) {
   }
 }
 
-function getTlsCertificate(address, domain, timeoutMs = 4000) {
+export function getTlsCertificate(address, domain, timeoutMs = 4000, connect = options => tls.connect(options)) {
   return new Promise(resolve => {
     let settled = false;
     let deadline;
@@ -127,7 +127,7 @@ function getTlsCertificate(address, domain, timeoutMs = 4000) {
       if (deadline) clearTimeout(deadline);
       resolve(result);
     };
-    const socket = tls.connect({
+    const socket = connect({
       host: address,
       port: 443,
       servername: domain,
