@@ -39,9 +39,11 @@ A provider or network failure must not become a negative finding. Partial result
 
 These checks reduce SSRF exposure but are application-layer controls, not a network egress boundary. The inspection feature also requires both `DOMAIN_INSPECTION_ENABLED=true` and `DOMAIN_INSPECTION_EGRESS_VERIFIED=true`; keep it disabled unless the exact deployed service has an independently verified network policy.
 
-A deployment egress policy must block private, loopback, link-local, metadata, platform-private, and other special-use destinations at the network layer, while allowing only the DNS and public TLS traffic required by the feature. Verify direct socket connections from the deployed service identity; testing only the application route is insufficient. Static outbound IPs identify the source and do not restrict destination addresses. If the selected hosting plan cannot enforce destination filtering, do not attest it and do not enable domain inspection.
+A deployment egress policy must block private, loopback, link-local, metadata, platform-private, and other special-use destinations at the network layer, while allowing only the DNS and public TLS traffic required by the feature. Verify direct socket connections from the deployed service identity; testing only the application route is insufficient. Static outbound IPs identify the source and do not restrict destination addresses.
 
-No hosting environment or network-level egress boundary is currently configured or verified for this project.
+Render is the selected hosting target. Render Free web services can initiate private-network connections to same-region data stores and paid services. Render's Pro environment isolation blocks private-network traffic across environment boundaries only; services within the same environment can still communicate, and the feature does not filter public-internet destinations. Dedicated outbound IPs identify the source, not allowed destinations. These documented controls are not a general outbound destination firewall. On the documented Render networking feature set, a complete egress boundary for domain inspection is not established; keep domain inspection disabled unless an additional independently verifiable network control becomes available.
+
+No Render service has been deployed or had its egress policy verified for this project.
 
 ## Private workspace and persistence
 
