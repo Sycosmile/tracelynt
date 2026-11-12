@@ -245,7 +245,7 @@ server.on('clientError', (error, socket) => {
   const status = error.code === 'HPE_HEADER_OVERFLOW'
     ? '431 Request Header Fields Too Large'
     : '400 Bad Request';
-  socket.end(`HTTP/1.1 ${status}\\r\\nConnection: close\\r\\nContent-Length: 0\\r\\n\\r\\n`);
+  socket.end(`HTTP/1.1 ${status}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`);
 });
 
 if (process.env.NODE_ENV !== 'test') {
