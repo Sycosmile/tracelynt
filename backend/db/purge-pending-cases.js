@@ -1,11 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { getPool, closePool } from '../src/db.js';
+import { getPurgeConfig } from '../src/purge-config.js';
 
 async function main() {
-  const dryRun = process.env.PURGE_DRY_RUN === 'true';
-  if (!dryRun && process.env.CONFIRM_PURGE_PENDING_CASES !== 'YES') {
-    throw new Error('Refusing to purge. Set CONFIRM_PURGE_PENDING_CASES=YES after reviewing the retention policy.');
-  }
+  const { dryRun } = getPurgeConfig(process.env);
   const ownerIds = process.env.PURGE_OWNER_IDS
     ? process.env.PURGE_OWNER_IDS.split(',').map((value) => value.trim()).filter(Boolean)
     : null;
@@ -27,9 +25,17 @@ async function main() {
       const expiredSessions = ownerIds
         ? await client.query('SELECT count(*)::int AS count FROM sessions WHERE user_id = ANY($1::uuid[]) AND (expires_at <= now() OR revoked_at IS NOT NULL)', [ownerIds])
         : await client.query('SELECT count(*)::int AS count FROM sessions WHERE expires_at <= now() OR revoked_at IS NOT NULL');
-      const expiredTransactions = ownerIds ? { rows: [{ count: null }] } : await client.query('SELECT count(*)::int AS count FROM oidc_login_transactions WHERE expires_at <= now()');
+      const expiredTransactions = ownerIds
+        ? { rows: [{ count: null }] }
+        : await client.query('SELECT count(*)::int AS count FROM oidc_login_transactions WHERE expires_at <= now()');
       await client.query('COMMIT');
-      process.stdout.write(JSON.stringify({ dryRun: true, pendingCases: pendingCases.rows[0].count, pendingAccounts: pendingAccounts.rows[0].count, expiredOrRevokedSessions: expiredSessions.rows[0].count, expiredLoginTransactions: expiredTransactions.rows[0].count }) + '\n');
+      process.stdout.write(JSON.stringify({
+        dryRun: true,
+        pendingCases: pendingCases.rows[0].count,
+        pendingAccounts: pendingAccounts.rows[0].count,
+        expiredOrRevokedSessions: expiredSessions.rows[0].count,
+        expiredLoginTransactions: expiredTransactions.rows[0].count
+      }) + '\n');
       return;
     }
     const pending = ownerIds
@@ -61,7 +67,7 @@ async function main() {
       await client.query('DELETE FROM oidc_login_transactions WHERE expires_at <= now()');
     }
     await client.query('COMMIT');
-    process.stdout.write('Purged pending cases: ' + pending.rowCount + '; pending accounts: ' + accounts.rowCount + '; expired sessions/login transactions removed.\n');
+    process.stdout.write('Purged pending cases: ' + pending.rowCount + '; pending accounts: ' + accounts.rowCount + '; expired sessions/login transactions removed.\\n');
   } catch (error) {
     await client.query('ROLLBACK').catch(() => {});
     throw error;
@@ -72,6 +78,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  process.stderr.write('Purge failed: ' + error.message + '\n');
+  process.stderr.write('Purge failed: ' + error.message + '\\n');
   process.exitCode = 1;
 });
