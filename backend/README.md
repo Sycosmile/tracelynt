@@ -83,6 +83,8 @@ Every case, evidence, and report query is scoped to the authenticated owner. Unk
 
 - Domain checks reject URLs, paths, ports, IP literals, and DNS results that are non-public or special-use; arbitrary web pages are not fetched.
 - External evidence URLs are stored as references and never fetched by the case API.
+- HTTP ingress is bounded to 16 KiB of headers, 50 header fields, 10 seconds for headers, 15 seconds to receive a request, 5 seconds of keep-alive, 100 requests per socket, and 100 concurrent connections per process. Oversized headers receive a 431 response and the connection is closed.
+- JSON request bodies are capped at 2 KiB for ordinary endpoints and 96 KiB for report and case payloads. These are application-level limits; the hosting proxy should enforce compatible or stricter limits.
 - Report versions are immutable snapshots; later evidence corrections do not silently rewrite previous reports.
 - The rate limiter is process-local and not sufficient for production abuse control.
 - Case and account deletion requests mark records deletion_pending, block normal case access, and revoke account sessions. The explicit operator command npm run purge:pending physically deletes pending cases and accounts and removes expired sessions/login transactions. Before running it, review the retention policy and set CONFIRM_PURGE_PENDING_CASES=YES. An optional PURGE_OWNER_IDS comma-separated UUID list limits a run to selected owners. No scheduled purge, approved retention period, backup expiry, or restoration drill is configured; deleting primary database rows does not remove backup copies.
