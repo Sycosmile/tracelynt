@@ -100,7 +100,7 @@ test('caps shared rate-limit storage and reclaims expired buckets before admitti
     assert.equal(full.rows[0].bucket_count, 3);
 
     await pool.query(
-      'UPDATE rate_limit_buckets SET expires_at = clock_timestamp() - interval \'1 second\' WHERE key_hash = ANY($1::bytea[])',
+      'UPDATE rate_limit_buckets SET window_started_at = clock_timestamp() - interval \'2 seconds\', expires_at = clock_timestamp() - interval \'1 second\' WHERE key_hash = ANY($1::bytea[])',
       [hashes.slice(0, 3)]
     );
 
