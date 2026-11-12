@@ -38,6 +38,62 @@ test('fails closed when domain inspection is not explicitly enabled and attested
   process.env.DOMAIN_INSPECTION_EGRESS_VERIFIED = 'true';
 });
 
+
+test('uses the verified Cloudflare client IP for Render rate limits, not spoofable X-Forwarded-For', async () => {
+  const previousRender = process.env.RENDER;
+  process.env.RENDER = 'true';
+  const base = baseUrl();
+  const payload = JSON.stringify({
+    subject: { type: 'business', name: 'Example Trading Ltd' },
+    findings: [{
+      claim: 'The business website publishes a contact page.',
+      category: 'direct_observation',
+      verificationState: 'unreviewed',
+      sourceName: 'Business website',
+      sourceUrl: 'https://example.com/contact'
+    }]
+  });
+  try {
+    for (let i = 0; i < 20; i += 1) {
+      const response = await fetch(base + '/api/report', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'cf-connecting-ip': '198.51.100.50',
+          'x-forwarded-for': '203.0.113.' + (i + 1)
+        },
+        body: payload
+      });
+      assert.equal(response.status, 200, 'request ' + (i + 1));
+    }
+
+    const limited = await fetch(base + '/api/report', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'cf-connecting-ip': '198.51.100.50',
+        'x-forwarded-for': '192.0.2.200'
+      },
+      body: payload
+    });
+    assert.equal(limited.status, 429);
+
+    const separateClient = await fetch(base + '/api/report', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'cf-connecting-ip': '198.51.100.51',
+        'x-forwarded-for': '203.0.113.1'
+      },
+      body: payload
+    });
+    assert.equal(separateClient.status, 200);
+  } finally {
+    if (previousRender === undefined) delete process.env.RENDER;
+    else process.env.RENDER = previousRender;
+  }
+});
+
 test('serves the interface and allowlisted static assets from one origin', async () => {
   const base = baseUrl();
   const page = await fetch(base + '/');
