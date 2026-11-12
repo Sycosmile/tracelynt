@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { query } from './db.js';
 
 const localWindows = new Map();
-let cleanupCounter = 0;
+const MAX_SHARED_BUCKETS = 20_000;
 
 function localDecision(key, limit, windowMs, now) {
   if (localWindows.size >= 5000) {
@@ -23,10 +23,11 @@ function localDecision(key, limit, windowMs, now) {
   };
 }
 
-export async function consumeRateLimit({ key, limit, windowMs = 60_000, now = Date.now(), sharedStore = process.env.NODE_ENV === 'production' }) {
+export async function consumeRateLimit({ key, limit, windowMs = 60_000, now = Date.now(), sharedStore = process.env.NODE_ENV === 'production', maxBuckets = MAX_SHARED_BUCKETS }) {
   if (typeof key !== 'string' || !key || key.length > 1024) throw new TypeError('Rate-limit key must be non-empty text up to 1024 characters.');
   if (!Number.isSafeInteger(limit) || limit < 1) throw new TypeError('Rate-limit limit must be a positive integer.');
   if (!Number.isSafeInteger(windowMs) || windowMs < 1000 || windowMs > 3_600_000) throw new TypeError('Rate-limit window must be between 1 second and 1 hour.');
+  if (!Number.isSafeInteger(maxBuckets) || maxBuckets < 1 || maxBuckets > MAX_SHARED_BUCKETS) throw new TypeError('Rate-limit bucket capacity must be between 1 and 20000.');
 
   if (!sharedStore) {
     return localDecision(key, limit, windowMs, now);
@@ -35,8 +36,12 @@ export async function consumeRateLimit({ key, limit, windowMs = 60_000, now = Da
   const keyHash = createHash('sha256').update('tracelynt-rate-limit:').update(key).digest();
   const seconds = Math.ceil(windowMs / 1000);
   const result = await query(
-    `WITH clock AS (
+    `WITH configured AS MATERIALIZED (
+       SELECT set_config('tracelynt.rate_limit_bucket_limit', $3::text, true)
+     ),
+     clock AS (
        SELECT to_timestamp(floor(extract(epoch FROM clock_timestamp()) / $2::numeric) * $2::numeric) AS starts_at
+       FROM configured
      )
      INSERT INTO rate_limit_buckets (key_hash, window_started_at, request_count, expires_at)
      SELECT $1, starts_at, 1, starts_at + ($2::integer * interval '1 second') FROM clock
@@ -52,21 +57,8 @@ export async function consumeRateLimit({ key, limit, windowMs = 60_000, now = Da
        GREATEST(1, CEIL(EXTRACT(EPOCH FROM (
          window_started_at + ($2::integer * interval '1 second') - clock_timestamp()
        )))::integer) AS retry_after`,
-    [keyHash, seconds]
+    [keyHash, seconds, maxBuckets]
   );
-
-  cleanupCounter += 1;
-  if (cleanupCounter % 256 === 0) {
-    await query(
-      `DELETE FROM rate_limit_buckets
-       WHERE key_hash IN (
-         SELECT key_hash FROM rate_limit_buckets
-         WHERE expires_at <= now()
-         ORDER BY expires_at
-         LIMIT 100
-       )`
-    );
-  }
 
   const row = result.rows[0];
   if (!row) throw new Error('Rate-limit store returned no decision.');
