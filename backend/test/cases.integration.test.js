@@ -369,7 +369,7 @@ test('private case API enforces owner isolation and versions evidence reports', 
     await requestAccountDeletion(userB);
     const purgePath = fileURLToPath(new URL('../db/purge-pending-cases.js', import.meta.url));
     const purge = spawnSync(process.execPath, [purgePath], {
-      env: { ...process.env, CONFIRM_PURGE_PENDING_CASES: 'YES', PURGE_OWNER_IDS: [userA, userB].join(',') },
+      env: { ...process.env, PURGE_DRY_RUN: 'false', CONFIRM_PURGE_PENDING_CASES: 'YES', PURGE_OWNER_IDS: [userA, userB].join(',') },
       encoding: 'utf8'
     });
     assert.equal(purge.status, 0, purge.stderr);
