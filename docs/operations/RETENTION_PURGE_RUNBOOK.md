@@ -38,7 +38,7 @@ npm run purge:pending
 Remove-Item Env:PURGE_DRY_RUN
 ```
 
-The dry run uses a read-only transaction and reports counts for pending cases, eligible pending accounts, expired/revoked sessions, and (without an owner filter) expired login transactions. When an owner filter is used, the login-transaction count is intentionally reported as null because those transactions are not scoped by owner in this command.
+The command defaults to dry-run when `PURGE_DRY_RUN` is omitted; only the exact value `false` selects destructive mode, and that mode also requires `CONFIRM_PURGE_PENDING_CASES=YES`. Other values are rejected. The dry run uses a read-only transaction and reports counts for pending cases, eligible pending accounts, expired/revoked sessions, and (without an owner filter) expired login transactions. When an owner filter is used, the login-transaction count is intentionally reported as null because those transactions are not scoped by owner in this command.
 
 The dry run does not reserve rows or guarantee the counts will remain unchanged before a later purge. Re-run it immediately before execution.
 
