@@ -57,5 +57,5 @@ test('pending-case purge refuses destructive execution without explicit confirma
     encoding: 'utf8'
   });
   assert.equal(result.status, 1);
-  assert.match(result.stderr, /Refusing to purge/);
+  assert.match(result.stderr, /Refusing destructive purge/);
 });
