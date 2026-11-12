@@ -38,6 +38,10 @@ When the Render platform sets `RENDER=true`, the backend binds to `0.0.0.0` so R
 
 Configure Render's health-check path as `/health`. This endpoint is a lightweight liveness check and intentionally does not require PostgreSQL or an external provider to be available. A successful health response does not mean private-workspace database features or authentication are ready.
 
+## PostgreSQL connection limits
+
+The API uses a PostgreSQL pool of 10 connections by default. `DB_POOL_MAX` may be set to an integer from 1 to 20; invalid or excessive values prevent pool creation rather than silently falling back. Connections have a 5-second acquisition timeout, idle connections are closed after 30 seconds, and PostgreSQL statements and idle transactions are each limited to 15 seconds. Tune these limits only after measuring the database plan's actual connection budget and query workload.
+
 ## OIDC configuration
 
 Configure an OIDC provider that supports discovery and authorization-code flow. Set:
