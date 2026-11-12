@@ -3,7 +3,7 @@ const MAX_POOL_MAX = 20;
 
 function parsePoolMax(value) {
   if (value === undefined || value === '') return DEFAULT_POOL_MAX;
-  if (!/^[1-9]\\d*$/.test(value)) {
+  if (!/^[1-9]\d*$/.test(value)) {
     throw new Error('DB_POOL_MAX must be a whole number between 1 and ' + MAX_POOL_MAX + '.');
   }
   const parsed = Number(value);
