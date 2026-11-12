@@ -99,10 +99,10 @@ async function query(run, timeoutMs = 3000, cancel = null) {
       Promise.resolve().then(run),
       new Promise((_, reject) => {
         timeout = setTimeout(() => {
-          try { cancel?.(); } catch { /* Cancellation is best-effort; the timeout remains authoritative. */ }
           const error = new Error('DNS lookup exceeded its time limit.');
           error.code = 'DNS_TIMEOUT';
           reject(error);
+          try { cancel?.(); } catch { /* Cancellation is best-effort; the timeout remains authoritative. */ }
         }, timeoutMs);
       })
     ]);
