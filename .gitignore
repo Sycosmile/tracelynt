@@ -41,3 +41,15 @@ exports/
 reports/
 case-data/
 investigation-data/
+
+# Terraform local state, provider cache, and generated plans
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.plan
+terraform.tfvars
+terraform.tfvars.json
+!terraform.tfvars.example
+crash.log
+crash.*.log
