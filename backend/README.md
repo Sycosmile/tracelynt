@@ -59,6 +59,22 @@ Use the matching hostname consistently; localhost and 127.0.0.1 are different or
 
 The login flow uses state, nonce, PKCE, short-lived server-side login transactions, and a browser-binding cookie. The server creates a high-entropy opaque session token, stores only its SHA-256 hash, and sends the token in an HttpOnly, SameSite cookie (Secure in production). Sessions expire after 12 hours. State-changing cookie-authenticated requests require a same-origin Origin/Referer check and an HMAC-derived CSRF token from GET /api/session in the X-CSRF-Token header.
 
+## Provider adapter boundary
+
+Provider responses are normalized by `src/provider-result.js`. The normalizer copies provider records into plain JSON data and enforces these limits:
+
+- At most 100 records per result.
+- At most 4 KiB per string value.
+- At most 16 KiB per serialized record and 64 KiB across all serialized records.
+- At most eight nested levels and 100 items or keys in each nested collection.
+- At most 20 errors and 20 limitations, with bounded text fields.
+
+Circular references, accessors, non-finite numbers, unsupported values, non-plain objects, and prototype-sensitive keys are rejected. These limits apply after the adapter has produced its in-memory result; they do not replace a streaming response-byte limit in any future network transport.
+
+The `src/provider-adapter.js` execution boundary accepts an injected adapter, passes it an abort signal, applies a configurable timeout (1–30 seconds; 5 seconds by default), and allows at most two concurrent executions per provider ID. A timed-out adapter that does not settle continues to occupy its concurrency slot until its underlying promise settles. Timeout, thrown-error, provider-ID mismatch, capacity, and invalid-result cases become explicit safe outcomes without exposing raw exception details. Partial and no-record outcomes remain distinct.
+
+This is an execution contract, not a live provider integration. No provider credentials, network clients, adapters, or automatic provider-to-case imports are configured. Adapter implementations must independently enforce destination allowlists, network egress restrictions, streaming response-size limits, credential handling, provider terms, and data minimization. The timeout abort signal is cooperative; an adapter's transport must honor it.
+
 ## Endpoints
 
 Public prototype:
