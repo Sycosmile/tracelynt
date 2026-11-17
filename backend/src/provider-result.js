@@ -1,6 +1,13 @@
 const OUTCOMES = new Set(['success', 'no_records', 'partial', 'stale', 'rate_limited', 'unavailable', 'error']);
 const FRESHNESS = new Set(['current', 'stale', 'unknown', 'not_applicable']);
 
+const MAX_RECORDS = 100;
+const MAX_RECORD_DEPTH = 8;
+const MAX_RECORD_STRING_BYTES = 4096;
+const MAX_SINGLE_RECORD_BYTES = 16 * 1024;
+const MAX_TOTAL_RECORD_BYTES = 64 * 1024;
+const MAX_OBJECT_KEYS = 100;
+
 function text(value, label, max = 300) {
   if (typeof value !== 'string' || !value.trim() || value.trim().length > max) {
     throw new TypeError(label + ' must be non-empty text of at most ' + max + ' characters.');
@@ -20,9 +27,92 @@ function timestamp(value, label, optional = false) {
   return parsed.toISOString();
 }
 
+function cloneBoundedJson(value, depth, ancestors) {
+  if (depth > MAX_RECORD_DEPTH) throw new TypeError('Provider record exceeds the maximum nesting depth.');
+  if (value === null || typeof value === 'boolean') return value;
+  if (typeof value === 'string') {
+    if (Buffer.byteLength(value, 'utf8') > MAX_RECORD_STRING_BYTES) {
+      throw new TypeError('Provider record contains a string that is too large.');
+    }
+    return value;
+  }
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) throw new TypeError('Provider records must contain finite numbers.');
+    return value;
+  }
+  if (typeof value !== 'object') throw new TypeError('Provider records must contain JSON-compatible values.');
+  if (ancestors.has(value)) throw new TypeError('Provider records must not contain circular references.');
+
+  ancestors.add(value);
+  try {
+    if (Array.isArray(value)) {
+      if (value.length > MAX_OBJECT_KEYS) throw new TypeError('Provider record array exceeds the item limit.');
+      const result = [];
+      for (let index = 0; index < value.length; index += 1) {
+        const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
+        if (!descriptor || !Object.hasOwn(descriptor, 'value')) {
+          throw new TypeError('Provider record arrays must be dense data arrays.');
+        }
+        result.push(cloneBoundedJson(descriptor.value, depth + 1, ancestors));
+      }
+      return result;
+    }
+
+    const prototype = Object.getPrototypeOf(value);
+    if (prototype !== Object.prototype && prototype !== null) {
+      throw new TypeError('Provider records must use plain JSON objects.');
+    }
+    const keys = Reflect.ownKeys(value);
+    if (keys.length > MAX_OBJECT_KEYS || keys.some(key => typeof key !== 'string')) {
+      throw new TypeError('Provider record object exceeds the key limit or contains symbol keys.');
+    }
+    const result = {};
+    for (const key of keys) {
+      if (key === '__proto__' || key === 'prototype' || key === 'constructor') {
+        throw new TypeError('Provider record contains a prohibited object key.');
+      }
+      const descriptor = Object.getOwnPropertyDescriptor(value, key);
+      if (!descriptor || !descriptor.enumerable || !Object.hasOwn(descriptor, 'value')) {
+        throw new TypeError('Provider records must contain enumerable data properties only.');
+      }
+      Object.defineProperty(result, key, {
+        value: cloneBoundedJson(descriptor.value, depth + 1, ancestors),
+        enumerable: true,
+        configurable: true,
+        writable: true
+      });
+    }
+    return result;
+  } finally {
+    ancestors.delete(value);
+  }
+}
+
+function normalizeRecords(records) {
+  if (!Array.isArray(records) || records.length > MAX_RECORDS) {
+    throw new TypeError('Records must be an array with at most ' + MAX_RECORDS + ' items.');
+  }
+  let totalBytes = 0;
+  return records.map((record, index) => {
+    if (record === null || (typeof record !== 'string' && (typeof record !== 'object' || Array.isArray(record)))) {
+      throw new TypeError('Record ' + (index + 1) + ' must be a string or object.');
+    }
+    const normalized = cloneBoundedJson(record, 0, new WeakSet());
+    const bytes = Buffer.byteLength(JSON.stringify(normalized), 'utf8');
+    if (bytes > MAX_SINGLE_RECORD_BYTES) {
+      throw new TypeError('Record ' + (index + 1) + ' exceeds the maximum serialized size.');
+    }
+    totalBytes += bytes;
+    if (totalBytes > MAX_TOTAL_RECORD_BYTES) {
+      throw new TypeError('Provider records exceed the maximum aggregate serialized size.');
+    }
+    return normalized;
+  });
+}
+
 /**
  * Normalize a provider response without interpreting the meaning or truth of its records.
- * Empty results, partial results, and unavailable providers remain distinct outcomes.
+ * Provider-controlled data is copied into bounded JSON values before it is returned.
  */
 export function normalizeProviderResult(input) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) {
@@ -33,15 +123,7 @@ export function normalizeProviderResult(input) {
   const outcome = text(input.outcome, 'Outcome', 30);
   if (!OUTCOMES.has(outcome)) throw new TypeError('Provider outcome is not supported.');
 
-  const records = input.records ?? [];
-  if (!Array.isArray(records) || records.length > 1000) {
-    throw new TypeError('Records must be an array with at most 1000 items.');
-  }
-  for (const [index, record] of records.entries()) {
-    if (record === null || (typeof record !== 'string' && (typeof record !== 'object' || Array.isArray(record)))) {
-      throw new TypeError('Record ' + (index + 1) + ' must be a string or object.');
-    }
-  }
+  const records = normalizeRecords(input.records ?? []);
 
   if (outcome === 'no_records' && records.length !== 0) {
     throw new TypeError('A no_records result cannot contain records.');
