@@ -68,7 +68,7 @@ test('rejects oversized individual and aggregate provider records', () => {
     ...base, records: [{ value: 'x'.repeat(16 * 1024) }]
   }), /maximum serialized size|string that is too large/);
   assert.throws(() => normalizeProviderResult({
-    ...base, records: Array(5).fill({ value: 'x'.repeat(14 * 1024) })
+    ...base, records: Array(20).fill({ value: 'x'.repeat(3500) })
   }), /aggregate serialized size/);
 });
 
